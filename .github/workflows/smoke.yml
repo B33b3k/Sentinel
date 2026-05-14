@@ -1,0 +1,38 @@
+name: smoke
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+jobs:
+  infra-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Poetry
+        run: pipx install poetry
+      - name: Install dependencies
+        run: poetry install --no-interaction
+      - name: Start infrastructure
+        run: docker compose up -d
+      - name: Wait for services
+        run: |
+          for service in kafka redis neo4j postgres mlflow; do
+            docker compose ps "$service"
+          done
+          sleep 45
+      - name: Create Kafka topics
+        run: bash scripts/init_kafka.sh
+      - name: Run smoke tests
+        run: poetry run pytest tests/smoke -v
+      - name: Dump compose logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop infrastructure
+        if: always()
+        run: docker compose down -v
