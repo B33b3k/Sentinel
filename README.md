@@ -188,6 +188,17 @@ sentinel/
 
 ## Quick Start
 
+> ⚠️ **SCHEMA NOT FINALIZED:** The fields and types in `TransactionEvent`, `AgentScore`, and
+> `SynthesisVerdict` (`orchestrator/schemas.py`) are **not yet locked**. All generator, agent,
+> and test code is provisional until the schema freeze at the end of Sprint 2. Do not build
+> hard dependencies on current field names or types.
+
+> **Current data blocker:** the required seed dataset is not available yet. The
+> repository has schema and generator placeholders, but `data/seeds/accounts.parquet`,
+> `data/seeds/transactions.parquet`, and `data/seeds/labels.parquet` are not
+> present. Steps 3-5 and any model/agent workflows that depend on seed data are
+> blocked until the dataset is generated or supplied.
+
 ```bash
 # 1. Clone and install
 git clone <repo>
@@ -262,28 +273,28 @@ Sprint 2 ──┬─→ Sprint 3 ──┐
 
 ### Decisions to lock
 
-- [ ] **D1: Real ML vs heuristic per agent.** Decision: Velocity + Geo = heuristic. Behavior + GNN = real ML.
-- [ ] **D2: SMS provider strategy.** Decision: Mock by default, one real Twilio shot at demo if trial credit allows.
-- [ ] **D3: Kafka vs direct calls.** Decision: Kafka, with `KAFKA_ENABLED=false` fallback flag.
-- [ ] **D4: Data source.** Decision: Synthetic data, ~5K accounts × 20–50 tx each, 2% labeled fraud across taxonomy.
-- [ ] **D5: Hosting.** Decision: Demo from laptop; cloud backup on a single VM as failover.
-- [ ] **D6: Per-account vs per-cohort behavior ML.** Decision: per-cohort only (5–10 cohorts total).
-- [ ] **D7: GNN scope.** Decision: Attempt GraphSAGE; if it doesn't train in time, fall back to Cypher mule-ring query and call it graph-based detection (it is).
+- [x] **D1: Real ML vs heuristic per agent.** Decision: Velocity + Geo = heuristic. Behavior + GNN = real ML.
+- [x] **D2: SMS provider strategy.** Decision: Mock by default, one real Twilio shot at demo if trial credit allows.
+- [x] **D3: Kafka vs direct calls.** Decision: Kafka, with `KAFKA_ENABLED=false` fallback flag.
+- [x] **D4: Data source.** Decision: Synthetic data, ~5K accounts × 20–50 tx each, 2% labeled fraud across taxonomy.
+- [x] **D5: Hosting.** Decision: Demo from laptop; cloud backup on a single VM as failover.
+- [x] **D6: Per-account vs per-cohort behavior ML.** Decision: per-cohort only (5–10 cohorts total).
+- [x] **D7: GNN scope.** Decision: Attempt GraphSAGE; if it doesn't train in time, fall back to Cypher mule-ring query and call it graph-based detection (it is).
 
 ### Tasks
 
-- [ ] Create repo with structure from [Repository Structure](#repository-structure)
-- [ ] Set up `.env.example` with all config keys
+- [x] Create repo with structure from [Repository Structure](#repository-structure)
+- [x] Set up `.env.example` with all config keys
 - [ ] Establish branch strategy: `main` (working only) / `dev` (integration) / `feature/<name>`
 - [ ] Install pre-commit hooks: `black + ruff`
-- [ ] Create `pyproject.toml` with all dependencies pinned
-- [ ] Set up CI smoke test (GitHub Actions): `docker compose up && pytest tests/smoke`
-- [ ] Assign owners for each sprint
+- [x] Create `pyproject.toml` with all dependencies pinned
+- [x] Set up CI smoke test (GitHub Actions): `docker compose up && pytest tests/smoke`
+- [x] Assign owners for each sprint
 - [ ] Create project board (GitHub Projects or Linear) with these sprints as columns
 
 ### Definition of Done
 
-- [ ] All 7 decisions documented in `docs/decisions.md`
+- [x] All 7 decisions documented in `docs/decisions.md`
 - [ ] Repo cloneable; `poetry install` succeeds
 - [ ] CI green on empty repo
 
@@ -365,15 +376,15 @@ Kafka topics to create:
 
 ### Tasks
 
-- [ ] Write `docker-compose.yml` per above
-- [ ] Write `scripts/init_kafka.sh` to create all 4 topics
+- [x] Write `docker-compose.yml` per above
+- [x] Write `scripts/init_kafka.sh` to create all 4 topics
 - [ ] Verify Kafka: `docker exec ... kafka-topics --list`
 - [ ] Verify Redis: `redis-cli ping` → `PONG`
 - [ ] Verify Neo4j: http://localhost:7474 loads, login works
 - [ ] Verify PostgreSQL: `psql -U sentinel -d sentinel_audit -c '\dt'`
 - [ ] Verify MLflow: http://localhost:5000 loads
-- [ ] Write `tests/smoke/test_infra.py` — pings every service
-- [ ] Add `docker compose down -v && docker compose up -d` to `scripts/reset.sh`
+- [x] Write `tests/smoke/test_infra.py` — pings every service
+- [x] Add `docker compose down -v && docker compose up -d` to `scripts/reset.sh`
 
 ### Definition of Done
 
@@ -389,6 +400,12 @@ Reproducible local infrastructure.
 ---
 
 ## Sprint 2 — Data Schemas & Generator
+
+> ⚠️ **SCHEMA STATUS: NOT FINALIZED**
+> The data fields and types in `TransactionEvent`, `AgentScore`, and `SynthesisVerdict` are **not yet locked**.
+> Do not treat `orchestrator/schemas.py` as a stable contract until this notice is removed.
+> Any agent, generator, or test code written before finalization must be considered provisional.
+> Schema freeze happens at the end of Sprint 2 — after that, no field changes without a full team review.
 
 **Goal:** Frozen schemas + synthetic data generator producing 100K realistic Nepal-context transactions.
 **Effort:** 5
@@ -463,7 +480,7 @@ URBAN_DISTRICTS = {"Kathmandu", "Lalitpur", "Bhaktapur", "Pokhara"}
 
 ### Tasks
 
-- [ ] Implement `orchestrator/schemas.py` with all Pydantic models above
+- [x] Implement `orchestrator/schemas.py` with all Pydantic models above
 - [ ] Write `data/generators/generate_accounts.py` (5,000 accounts with realistic distributions)
 - [ ] Write `data/generators/generate_legitimate.py` (normal transaction patterns)
 - [ ] Write `data/generators/generate_fraud.py` (six fraud taxonomy patterns)
