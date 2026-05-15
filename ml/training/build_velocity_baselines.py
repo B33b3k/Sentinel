@@ -6,14 +6,15 @@ import pathlib
 import pandas as pd
 import redis
 
-SEEDS_DIR = pathlib.Path("data/seeds")
+from data.loader import load_transactions
+
 WINDOWS = {"2m": 120, "10m": 600, "1h": 3600, "24h": 86400}
 
 
 def build_baselines(redis_url: str = "redis://localhost:6379/0") -> None:
     r = redis.Redis.from_url(redis_url, decode_responses=True)
 
-    txs = pd.read_parquet(SEEDS_DIR / "transactions.parquet")
+    txs = load_transactions()
     txs["timestamp"] = pd.to_datetime(txs["timestamp"], utc=True)
     txs = txs.sort_values("timestamp")
 

@@ -1,7 +1,10 @@
-CREATE CONSTRAINT account_id IF NOT EXISTS
-FOR (account:Account)
-REQUIRE account.account_id IS UNIQUE;
+// Neo4j schema + indexes for SENTINEL graph layer
 
-CREATE CONSTRAINT transaction_id IF NOT EXISTS
-FOR (transaction:Transaction)
-REQUIRE transaction.transaction_id IS UNIQUE;
+// Constraints
+CREATE CONSTRAINT account_id_unique IF NOT EXISTS
+FOR (a:Account) REQUIRE a.id IS UNIQUE;
+
+// Indexes
+CREATE INDEX account_district IF NOT EXISTS FOR (a:Account) ON (a.district);
+CREATE INDEX account_type IF NOT EXISTS FOR (a:Account) ON (a.type);
+CREATE INDEX transfer_timestamp IF NOT EXISTS FOR ()-[t:TRANSFERRED]-() ON (t.timestamp);

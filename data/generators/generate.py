@@ -23,6 +23,9 @@ def main(n_accounts: int = 5000, seed: int = 42) -> None:
 
     print("Generating legitimate transactions...")
     legit = generate_legitimate(accounts, seed=seed)
+    # Cap to keep total near 100K
+    if len(legit) > 95000:
+        legit = legit.sample(n=95000, random_state=seed).reset_index(drop=True)
     print(f"  → {len(legit)} legitimate transactions")
 
     print("Generating fraud transactions...")

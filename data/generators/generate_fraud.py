@@ -200,14 +200,21 @@ def generate_fraud(accounts: pd.DataFrame, target_fraud_rate: float = 0.02,
                    total_legit: int = 95000, seed: int = 42) -> pd.DataFrame:
     rng = random.Random(seed)
     target_n = int(total_legit * target_fraud_rate / (1 - target_fraud_rate))
-    per_type = max(1, target_n // 6)
+
+    # Approximate rows per call: sim_swap=1, velocity_burst=~12, mule=~5, device=1, geo=2, synth=1
+    # Solve: n1 + 12*n2 + 5*n3 + n4 + 2*n5 + n6 = target_n, all equal base
+    # Simple: set base = target_n // 22 (sum of multipliers), then scale
+    base = max(1, target_n // 22)
 
     rows: list[dict] = []
-    rows += _sim_swap_esewa(accounts, rng, per_type)
-    rows += _velocity_burst(accounts, rng, per_type)
-    rows += _remittance_mule(accounts, rng, per_type)
-    rows += _new_device_takeover(accounts, rng, per_type)
-    rows += _geo_impossible(accounts, rng, per_type)
-    rows += _synthetic_identity(accounts, rng, per_type)
+    rows += _sim_swap_esewa(accounts, rng, base * 4)
+    rows += _velocity_burst(accounts, rng, base)          # ~12 rows each
+    rows += _remittance_mule(accounts, rng, base)         # ~5 rows each
+    rows += _new_device_takeover(accounts, rng, base * 4)
+    rows += _geo_impossible(accounts, rng, base * 2)      # 2 rows each
+    rows += _synthetic_identity(accounts, rng, base * 4)
 
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    if len(df) > target_n:
+        df = df.sample(n=target_n, random_state=seed).reset_index(drop=True)
+    return df

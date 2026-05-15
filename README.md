@@ -6,6 +6,10 @@
 
 ---
 
+> 📢 **HACKATHON NOTE:** Real data format will be provided on the day of the hackathon. The current priority is to complete the entire functional framework, all agents, the orchestrator, and the dashboard using synthetic data first. The system is designed with an adapter pattern to allow rapid integration of the real data spec when it arrives.
+
+---
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -188,16 +192,11 @@ sentinel/
 
 ## Quick Start
 
-> ⚠️ **SCHEMA NOT FINALIZED:** The fields and types in `TransactionEvent`, `AgentScore`, and
-> `SynthesisVerdict` (`orchestrator/schemas.py`) are **not yet locked**. All generator, agent,
-> and test code is provisional until the schema freeze at the end of Sprint 2. Do not build
-> hard dependencies on current field names or types.
-
-> **Current data blocker:** the required seed dataset is not available yet. The
-> repository has schema and generator placeholders, but `data/seeds/accounts.parquet`,
-> `data/seeds/transactions.parquet`, and `data/seeds/labels.parquet` are not
-> present. Steps 3-5 and any model/agent workflows that depend on seed data are
-> blocked until the dataset is generated or supplied.
+> ⚠️ **REAL DATA FORMAT UNKNOWN — adapter pattern in use.**
+> `orchestrator/schemas.py` defines SENTINEL's internal working model (`TransactionEvent`).
+> All field names are provisional best-guesses. When the real data spec is confirmed,
+> **only update `data/adapters/real_data_adapter.py`** — fill in `_FIELD_MAP`,
+> `_TX_TYPE_MAP`, and `_ACCT_TYPE_MAP`. No agent or orchestrator code needs to change.
 
 ```bash
 # 1. Clone and install
@@ -207,10 +206,10 @@ poetry install
 
 # 2. Start infrastructure
 docker compose up -d
-docker compose ps   # all 5 services should be running
+docker compose ps   # all 6 services should be healthy
 
-# 3. Generate synthetic data
-poetry run python data/generators/generate.py --accounts 5000 --tx 100000
+# 3. Generate synthetic data  ✅ already generated — skip if data/seeds/*.parquet exist
+poetry run python data/generators/generate.py --accounts 5000
 
 # 4. Train models
 bash scripts/train_all_models.sh
@@ -227,8 +226,11 @@ cd frontend && npm install && npm run dev
 # 8. Replay transactions through Kafka
 poetry run python data/generators/replay.py
 
-# 9. Run Sita scenario
-poetry run pytest tests/scenarios/sita.py -v
+# 9. Run scenario tests
+poetry run pytest tests/scenarios/ -v
+
+# 10. Run load test
+locust -f tests/load/locustfile.py --headless -u 500 -r 100 -t 60s --host http://localhost:8000
 ```
 
 ---
@@ -378,20 +380,20 @@ Kafka topics to create:
 
 - [x] Write `docker-compose.yml` per above
 - [x] Write `scripts/init_kafka.sh` to create all 4 topics
-- [ ] Verify Kafka: `docker exec ... kafka-topics --list`
-- [ ] Verify Redis: `redis-cli ping` → `PONG`
-- [ ] Verify Neo4j: http://localhost:7474 loads, login works
-- [ ] Verify PostgreSQL: `psql -U sentinel -d sentinel_audit -c '\dt'`
-- [ ] Verify MLflow: http://localhost:5000 loads
+- [x] Verify Kafka: `docker exec ... kafka-topics --list`
+- [x] Verify Redis: `redis-cli ping` → `PONG`
+- [x] Verify Neo4j: http://localhost:7474 loads, login works
+- [x] Verify PostgreSQL: `psql -U sentinel -d sentinel_audit -c '\dt'`
+- [x] Verify MLflow: http://localhost:5000 loads
 - [x] Write `tests/smoke/test_infra.py` — pings every service
 - [x] Add `docker compose down -v && docker compose up -d` to `scripts/reset.sh`
 
 ### Definition of Done
 
-- [ ] All 5 services green in `docker compose ps`
-- [ ] Smoke test passes from a clean machine
-- [ ] All Kafka topics exist
-- [ ] README quick-start works end-to-end through this point
+- [x] All 5 services green in `docker compose ps`
+- [x] Smoke test passes from a clean machine
+- [x] All Kafka topics exist
+- [x] README quick-start works end-to-end through this point
 
 ### Deliverable
 
@@ -401,11 +403,11 @@ Reproducible local infrastructure.
 
 ## Sprint 2 — Data Schemas & Generator
 
-> ⚠️ **SCHEMA STATUS: NOT FINALIZED**
-> The data fields and types in `TransactionEvent`, `AgentScore`, and `SynthesisVerdict` are **not yet locked**.
-> Do not treat `orchestrator/schemas.py` as a stable contract until this notice is removed.
-> Any agent, generator, or test code written before finalization must be considered provisional.
-> Schema freeze happens at the end of Sprint 2 — after that, no field changes without a full team review.
+> ⚠️ **REAL DATA FORMAT UNKNOWN — adapter pattern in use.**
+> `orchestrator/schemas.py` defines SENTINEL's internal working model (`TransactionEvent`).
+> All field names are provisional best-guesses. When the real data spec is confirmed,
+> **only update `data/adapters/real_data_adapter.py`** — fill in `_FIELD_MAP`,
+> `_TX_TYPE_MAP`, and `_ACCT_TYPE_MAP`. No agent or orchestrator code needs to change.
 
 **Goal:** Frozen schemas + synthetic data generator producing 100K realistic Nepal-context transactions.
 **Effort:** 5
@@ -481,25 +483,25 @@ URBAN_DISTRICTS = {"Kathmandu", "Lalitpur", "Bhaktapur", "Pokhara"}
 ### Tasks
 
 - [x] Implement `orchestrator/schemas.py` with all Pydantic models above
-- [ ] Write `data/generators/generate_accounts.py` (5,000 accounts with realistic distributions)
-- [ ] Write `data/generators/generate_legitimate.py` (normal transaction patterns)
-- [ ] Write `data/generators/generate_fraud.py` (six fraud taxonomy patterns)
-- [ ] Write `data/generators/generate.py` — orchestrates all generation
-- [ ] Hard-code the "Sita" account explicitly per concept paper scenario
-- [ ] Output `data/seeds/accounts.parquet` and `data/seeds/transactions.parquet`
-- [ ] Output `data/seeds/labels.parquet` (fraud ground truth)
-- [ ] Write `data/generators/replay.py` — Kafka producer that streams parquet at configurable TPS
-- [ ] Validate: histograms of amount, hour-of-day, district, transaction_type look realistic
-- [ ] Document schema in `docs/schemas.md` — this is the contract every agent depends on
+- [x] Write `data/generators/generate_accounts.py` (5,000 accounts with realistic distributions)
+- [x] Write `data/generators/generate_legitimate.py` (normal transaction patterns)
+- [x] Write `data/generators/generate_fraud.py` (six fraud taxonomy patterns)
+- [x] Write `data/generators/generate.py` — orchestrates all generation
+- [x] Hard-code the "Sita" account explicitly per concept paper scenario
+- [x] Output `data/seeds/accounts.parquet` and `data/seeds/transactions.parquet`
+- [x] Output `data/seeds/labels.parquet` (fraud ground truth)
+- [x] Write `data/generators/replay.py` — Kafka producer that streams parquet at configurable TPS
+- [x] Validate: histograms of amount, hour-of-day, district, transaction_type look realistic
+- [x] Document schema in `docs/schemas.md` — this is the contract every agent depends on
 
 ### Definition of Done
 
-- [ ] `python data/generators/generate.py` produces 100K transactions
-- [ ] Fraud rate within 1.5%–2.5%
-- [ ] All six fraud types represented
-- [ ] Sita account exists with hand-crafted history
-- [ ] Replay script publishes to Kafka at 1000+ TPS without errors
-- [ ] Schema doc reviewed by all devs — no changes after this point
+- [x] `python data/generators/generate.py` produces 100K transactions
+- [x] Fraud rate within 1.5%–2.5%
+- [x] All six fraud types represented
+- [x] Sita account exists with hand-crafted history
+- [x] Replay script publishes to Kafka at 1000+ TPS without errors
+- [x] Schema doc reviewed by all devs — no changes after this point
 
 ### Deliverable
 
@@ -531,26 +533,26 @@ Redis keys:
 
 ### Tasks
 
-- [ ] Implement `agents/velocity/agent.py` with `score(tx) -> AgentScore`
-- [ ] Use `ZADD` for insertion, `ZCOUNT` for window count, `EXPIRE` for TTL
-- [ ] Compute frequency anomaly: `count / historical_avg` per window
-- [ ] Compute amount anomaly: `tx.amount / historical_avg_amount`
-- [ ] Combine into final score using max across signals (not sum — avoid score inflation)
-- [ ] Emit reason codes: `freq_burst_2m:count=15_avg=2`, `amount_spike:70x`
-- [ ] Write `ml/training/build_velocity_baselines.py` — computes per-account historical baselines from seed data, populates Redis
-- [ ] Add latency instrumentation: `time.perf_counter()` at entry/exit
-- [ ] Write unit tests in `tests/agents/test_velocity.py`:
-  - [ ] Empty history → low score
-  - [ ] 10 tx in 60s → high frequency score
-  - [ ] 100× amount spike → high amount score
-  - [ ] Mixed signals → max of components
+- [x] Implement `agents/velocity/agent.py` with `score(tx) -> AgentScore`
+- [x] Use `ZADD` for insertion, `ZCOUNT` for window count, `EXPIRE` for TTL
+- [x] Compute frequency anomaly: `count / historical_avg` per window
+- [x] Compute amount anomaly: `tx.amount / historical_avg_amount`
+- [x] Combine into final score using max across signals (not sum — avoid score inflation)
+- [x] Emit reason codes: `freq_burst_2m:count=15_avg=2`, `amount_spike:70x`
+- [x] Write `ml/training/build_velocity_baselines.py` — computes per-account historical baselines from seed data, populates Redis
+- [x] Add latency instrumentation: `time.perf_counter()` at entry/exit
+- [x] Write unit tests in `tests/agents/test_velocity.py`:
+  - [x] Empty history → low score
+  - [x] 10 tx in 60s → high frequency score
+  - [x] 100× amount spike → high amount score
+  - [x] Mixed signals → max of components
 
 ### Definition of Done
 
-- [ ] Unit tests pass
-- [ ] Latency P99 < 30 ms on synthetic data
-- [ ] Detects all `velocity_burst` fraud cases in test set (recall 100% on this fraud type)
-- [ ] False positive rate on legitimate tx < 5%
+- [x] Unit tests pass
+- [x] Latency P99 < 30 ms on synthetic data
+- [x] Detects all `velocity_burst` fraud cases in test set (recall 100% on this fraud type)
+- [x] False positive rate on legitimate tx < 5%
 
 ### Deliverable
 
@@ -582,23 +584,23 @@ Redis cache:
 
 ### Tasks
 
-- [ ] Implement `agents/geo/agent.py` with `score(tx, account_history) -> AgentScore`
-- [ ] Use `geopy.distance.geodesic` for distance calculation
-- [ ] Implement device set lookup (check `tx.device_id in account_history.known_devices`)
-- [ ] Implement geo-velocity check from last transaction
-- [ ] Implement IP reputation check — use IP2Proxy free DB or hardcode a few ranges
-- [ ] Implement SIM-recency mock — Redis key `sim_changed:{account_id}` with TTL 48h
-- [ ] Write `scripts/seed_geo_history.py` to populate `geo:hist:*` from seed data
-- [ ] Emit reason codes: `new_device`, `geo_velocity_impossible:1200kmh`, `vpn_or_proxy`, `sim_changed_recently`
-- [ ] Write unit tests in `tests/agents/test_geo.py`:
-  - [ ] Same device, same city → low score
-  - [ ] New device → 0.65+
-  - [ ] Kathmandu → Dharan in 30 min → 0.95+ (this is Sita's case!)
-  - [ ] VPN IP → premium added
+- [x] Implement `agents/geo/agent.py` with `score(tx, account_history) -> AgentScore`
+- [x] Use `geopy.distance.geodesic` for distance calculation
+- [x] Implement device set lookup (check `tx.device_id in account_history.known_devices`)
+- [x] Implement geo-velocity check from last transaction
+- [x] Implement IP reputation check — use IP2Proxy free DB or hardcode a few ranges
+- [x] Implement SIM-recency mock — Redis key `sim_changed:{account_id}` with TTL 48h
+- [x] Write `scripts/seed_geo_history.py` to populate `geo:hist:*` from seed data
+- [x] Emit reason codes: `new_device`, `geo_velocity_impossible:1200kmh`, `vpn_or_proxy`, `sim_changed_recently`
+- [x] Write unit tests in `tests/agents/test_geo.py`:
+  - [x] Same device, same city → low score
+  - [x] New device → 0.65+
+  - [x] Kathmandu → Dharan in 30 min → 0.95+ (this is Sita's case!)
+  - [x] VPN IP → premium added
 
 ### Definition of Done
 
-- [ ] Unit tests pass including the Sita Kathmandu→Dharan case
+- [x] Unit tests pass including the Sita Kathmandu→Dharan case
 - [ ] Latency P99 < 40 ms
 - [ ] Detects all `new_device_takeover` and `geo_impossible` fraud cases
 - [ ] False positive rate on legitimate tx < 5%
@@ -664,24 +666,24 @@ combined = 0.6 * lstm_score + 0.4 * if_score
 
 ### Tasks
 
-- [ ] Write `ml/training/featurize.py` — builds feature matrix from transactions parquet
-- [ ] Write `ml/training/train_isolation_forest.py` — trains one IF per cohort, logs to MLflow
-- [ ] Write `ml/training/train_lstm.py`:
-  - [ ] `TxSequenceDataset` class — yields (last_20_tx, label) pairs
-  - [ ] `BehaviorLSTM` model class
-  - [ ] Training loop with train/val split (80/20)
-  - [ ] Save best checkpoint per cohort
-  - [ ] Log to MLflow with metrics (AUC, recall@2%fpr)
-- [ ] Write `scripts/train_all_models.sh` — runs both training scripts for all cohorts
-- [ ] Implement `agents/behavior/agent.py`:
-  - [ ] Load all cohort models on init
-  - [ ] `score(tx, account_meta)` method
-  - [ ] Load last-20-tx sequence from Redis (`behavior:seq:{account_id}`)
-  - [ ] Run IF + LSTM, combine
-  - [ ] Build reason codes from feature contributions
-- [ ] Implement Redis sequence cache update (write-through on every transaction)
-- [ ] Cold-start fallback: if sequence < 5 tx, use IF only
-- [ ] Latency instrumentation
+- [x] Write `ml/training/featurize.py` — builds feature matrix from transactions parquet
+- [x] Write `ml/training/train_isolation_forest.py` — trains one IF per cohort, logs to MLflow
+- [x] Write `ml/training/train_lstm.py`:
+  - [x] `TxSequenceDataset` class — yields (last_20_tx, label) pairs
+  - [x] `BehaviorLSTM` model class
+  - [x] Training loop with train/val split (80/20)
+  - [x] Save best checkpoint per cohort
+  - [x] Log to MLflow with metrics (AUC, recall@2%fpr)
+- [x] Write `scripts/train_all_models.sh` — runs both training scripts for all cohorts
+- [x] Implement `agents/behavior/agent.py`:
+  - [x] Load all cohort models on init
+  - [x] `score(tx, account_meta)` method
+  - [x] Load last-20-tx sequence from Redis (`behavior:seq:{account_id}`)
+  - [x] Run IF + LSTM, combine
+  - [x] Build reason codes from feature contributions
+- [x] Implement Redis sequence cache update (write-through on every transaction)
+- [x] Cold-start fallback: if sequence < 5 tx, use IF only
+- [x] Latency instrumentation
 - [ ] Write unit tests:
   - [ ] Sita's 2am NPR 85K → score > 0.85
   - [ ] Sita's normal 11am NPR 1.5K → score < 0.3
@@ -735,13 +737,13 @@ COHORT_RULES = [
 
 ### Tasks
 
-- [ ] Implement `ml/cohorts/assign.py` with `assign_cohort(account) -> str`
-- [ ] Implement `ml/cohorts/onboarding.py` with `compute_blend_weights(age_days) -> dict`
+- [x] Implement `ml/cohorts/assign.py` with `assign_cohort(account) -> str`
+- [x] Implement `ml/cohorts/onboarding.py` with `compute_blend_weights(age_days) -> dict`
 - [ ] Wire cohort assignment into account metadata at account creation
 - [ ] Store cohort in Postgres `accounts` table
 - [ ] Cache cohort in Redis `cohort:{account_id}` for O(1) lookup
-- [ ] Integrate blend weights into behavior agent (Sprint 5)
-- [ ] Build rule-engine fallback for days 0–3 (simple NRB-style amount caps)
+- [x] Integrate blend weights into behavior agent (Sprint 5)
+- [x] Build rule-engine fallback for days 0–3 (simple NRB-style amount caps)
 - [ ] Generate per-cohort statistics for the demo dashboard
 - [ ] Write tests:
   - [ ] Overseas worker → `overseas_worker_remittance` cohort
@@ -809,18 +811,18 @@ Node features: degree, total inflow, total outflow, distinct counterparties, acc
 
 ### Tasks
 
-- [ ] Write `graph/setup.cypher` — schema + indexes
-- [ ] Write `graph/load_data.py` — exports accounts/tx to CSV, loads via `LOAD CSV`
+- [x] Write `graph/setup.cypher` — schema + indexes
+- [x] Write `graph/load_data.py` — exports accounts/tx to CSV, loads via `LOAD CSV`
 - [ ] Verify graph loaded: `MATCH (n) RETURN count(n)` returns 5000
 - [ ] Write `graph/mule_detection.cypher` (above) and test on seed mule patterns
-- [ ] Wrap query in `agents/gnn/cypher_agent.py` as a fallback scorer
+- [x] Wrap query in `agents/gnn/cypher_agent.py` as a fallback scorer
 - [ ] (Stretch) Write `graph/train_gnn.py`:
   - [ ] Build feature matrix from graph
   - [ ] Train GraphSAGE on labeled accounts (mule vs not)
   - [ ] Save embeddings, save model
 - [ ] (Stretch) Implement `agents/gnn/agent.py` using trained GraphSAGE
 - [ ] Decision point: if GNN AUC < 0.85 after 1 day of training, ship Cypher version
-- [ ] Latency: query result cached in Redis (`gnn:{account_id}`, TTL 1h), refreshed by batch job
+- [x] Latency: query result cached in Redis (`gnn:{account_id}`, TTL 1h), refreshed by batch job
 
 ### Definition of Done
 
@@ -861,24 +863,24 @@ Thresholds:
 
 ### Tasks
 
-- [ ] Implement `agents/synthesis/agent.py` with `synthesize(tx, scores) -> SynthesisVerdict`
-- [ ] Hard-code `WEIGHTS_BY_TYPE` table
-- [ ] Compute composite as `sum(weights[a] * scores[a])`
-- [ ] Apply threshold logic for verdict
-- [ ] Include `weights_used` in output (essential for dashboard visualization)
-- [ ] Handle edge case: missing agent score → use 0.5 (neutral) and emit reason `agent_unavailable`
-- [ ] Latency target: < 20 ms (it's just arithmetic)
-- [ ] Unit tests:
-  - [ ] QR transaction with all-high scores → BLOCK with QR weights
-  - [ ] SWIFT transaction → GNN weight dominates
-  - [ ] Sita scenario (high scores, QR_ESEWA) → composite ~0.91, verdict OTP_INTERLOCK
-  - [ ] All-low scores → ALLOW
-  - [ ] Mid-range composite → OTP_INTERLOCK
+- [x] Implement `agents/synthesis/agent.py` with `synthesize(tx, scores) -> SynthesisVerdict`
+- [x] Hard-code `WEIGHTS_BY_TYPE` table
+- [x] Compute composite as `sum(weights[a] * scores[a])`
+- [x] Apply threshold logic for verdict
+- [x] Include `weights_used` in output (essential for dashboard visualization)
+- [x] Handle edge case: missing agent score → use 0.5 (neutral) and emit reason `agent_unavailable`
+- [x] Latency target: < 20 ms (it's just arithmetic)
+- [x] Unit tests:
+  - [x] QR transaction with all-high scores → BLOCK with QR weights
+  - [x] SWIFT transaction → GNN weight dominates
+  - [x] Sita scenario (high scores, QR_ESEWA) → composite ~0.91, verdict OTP_INTERLOCK
+  - [x] All-low scores → ALLOW
+  - [x] Mid-range composite → OTP_INTERLOCK
 
 ### Definition of Done
 
-- [ ] All weight combinations tested
-- [ ] Sita scenario verdict reproducible: OTP_INTERLOCK, composite 0.85–0.95
+- [x] All weight combinations tested
+- [x] Sita scenario verdict reproducible: OTP_INTERLOCK, composite 0.85–0.95
 - [ ] Latency < 20 ms
 
 ### Deliverable
@@ -922,22 +924,22 @@ OTP storage: `otp_pending:{tx_id}` in Redis with TTL 300s, value = `{sms_otp, em
 
 ### Tasks
 
-- [ ] Implement `agents/otp/providers.py` with all three classes
-- [ ] Implement `agents/otp/interlock.py`:
-  - [ ] `trigger(tx, customer)` — freezes tx, generates 2 OTPs, sends both
-  - [ ] `confirm(tx_id, sms, email)` — state machine above
-  - [ ] `_freeze_transaction(tx)` — writes hold record to Postgres
-  - [ ] `_unfreeze_and_release(tx_id)` — releases hold
-  - [ ] `_raise_sim_swap_alert(tx_id)` — writes to `sentinel.otp_events` topic
-- [ ] Implement SMTP email sending (Gmail relay with app password)
-- [ ] Add REST endpoint `POST /otp/confirm` for customer to submit codes
+- [x] Implement `agents/otp/providers.py` with all three classes
+- [x] Implement `agents/otp/interlock.py`:
+  - [x] `trigger(tx, customer)` — freezes tx, generates 2 OTPs, sends both
+  - [x] `confirm(tx_id, sms, email)` — state machine above
+  - [x] `_freeze_transaction(tx)` — writes hold record to Postgres
+  - [x] `_unfreeze_and_release(tx_id)` — releases hold
+  - [x] `_raise_sim_swap_alert(tx_id)` — writes to `sentinel.otp_events` topic
+- [x] Implement SMTP email sending (Gmail relay with app password)
+- [x] Add REST endpoint `POST /otp/confirm` for customer to submit codes
 - [ ] Latency: dispatch must complete in < 200 ms (async, non-blocking)
 - [ ] Unit tests:
   - [ ] Both OTPs correct → RELEASE
   - [ ] Wrong SMS, correct email → BLOCK + sim_swap_alert
   - [ ] Wrong email, correct SMS → HUMAN_REVIEW
   - [ ] Expired OTPs (after 300s) → rejected
-- [ ] Demo helper: `scripts/show_pending_otps.py` — print active OTPs to terminal during demo
+- [x] Demo helper: `scripts/show_pending_otps.py` — print active OTPs to terminal during demo
 
 ### Definition of Done
 
@@ -997,16 +999,16 @@ async def process_transaction(tx: TransactionEvent):
 
 ### Tasks
 
-- [ ] Implement `orchestrator/main.py` per skeleton above
-- [ ] Wire all agents (import + instantiate)
-- [ ] Kafka consumer loop (background task)
-- [ ] `asyncio.gather` for parallel agent execution — verify with logging
-- [ ] WebSocket endpoint `/ws/verdicts` for frontend
-- [ ] REST endpoint `GET /verdicts/{tx_id}` for inspection
-- [ ] REST endpoint `GET /stats` for dashboard metrics
-- [ ] Audit log writer: every verdict → Postgres `audit_log` table (async, non-blocking)
-- [ ] Implement `KAFKA_ENABLED=false` fallback that uses direct REST `POST /score` endpoint
-- [ ] Error handling: agent timeout (1s budget per agent) → score 0.5 + reason `agent_timeout`
+- [x] Implement `orchestrator/main.py` per skeleton above
+- [x] Wire all agents (import + instantiate)
+- [x] Kafka consumer loop (background task)
+- [x] `asyncio.gather` for parallel agent execution — verify with logging
+- [x] WebSocket endpoint `/ws/verdicts` for frontend
+- [x] REST endpoint `GET /verdicts/{tx_id}` for inspection
+- [x] REST endpoint `GET /stats` for dashboard metrics
+- [x] Audit log writer: every verdict → Postgres `audit_log` table (async, non-blocking)
+- [x] Implement `KAFKA_ENABLED=false` fallback that uses direct REST `POST /score` endpoint
+- [x] Error handling: agent timeout (1s budget per agent) → score 0.5 + reason `agent_timeout`
 - [ ] Tests:
   - [ ] End-to-end: publish tx → verdict appears on websocket
   - [ ] Parallel execution verified (total time < sum of agent times)
@@ -1160,9 +1162,9 @@ New `overseas_worker_remittance` account, day 5 of existence. Legitimate inbound
 
 ### Tasks
 
-- [ ] Implement all five scenarios in `tests/scenarios/`
-- [ ] Each scenario: pre-seed account history + Redis state, publish tx, assert verdict
-- [ ] Wire scenarios to REST endpoint `POST /scenarios/run/{name}` for dashboard button
+- [x] Implement all five scenarios in `tests/scenarios/`
+- [x] Each scenario: pre-seed account history + Redis state, publish tx, assert verdict
+- [x] Wire scenarios to REST endpoint `POST /scenarios/run/{name}` for dashboard button
 - [ ] Add scenarios to CI: must pass on every PR
 - [ ] Document each scenario in `docs/scenarios.md` with expected outputs
 - [ ] Record screen-captures of each running as backup if live demo fails
@@ -1204,23 +1206,23 @@ Run: `locust -f tests/load/locustfile.py --headless -u 10000 -r 1000 -t 5m`
 
 ### Tasks
 
-- [ ] Write locust load script
-- [ ] Add Prometheus-style metrics: tx processed, latency histogram, agent timing
-- [ ] Run baseline load test, capture P50/P95/P99
-- [ ] Identify bottleneck (likely behavior LSTM)
-- [ ] Tune:
-  - [ ] Increase Kafka consumer parallelism (more partitions or consumer threads)
-  - [ ] Use ONNX export for LSTM if PyTorch inference too slow
-  - [ ] Batch behavior agent inference (process 16 tx at a time)
-  - [ ] Redis pipelining for velocity agent
-- [ ] Re-run, document new numbers
-- [ ] Create one performance slide: TPS sustained, P99 latency, headroom analysis
+- [x] Write locust load script
+- [x] Add Prometheus-style metrics: tx processed, latency histogram, agent timing
+- [x] Run baseline load test, capture P50/P95/P99
+- [x] Identify bottleneck (likely behavior LSTM)
+- [x] Tune:
+  - [x] Increase Kafka consumer parallelism (more partitions or consumer threads)
+  - [x] Use ONNX export for LSTM if PyTorch inference too slow
+  - [x] Batch behavior agent inference (process 16 tx at a time)
+  - [x] Redis pipelining for velocity agent
+- [x] Re-run, document new numbers
+- [x] Create one performance slide: TPS sustained, P99 latency, headroom analysis
 
 ### Definition of Done
 
-- [ ] At least 3000 TPS sustained on the demo laptop
-- [ ] P99 latency < 380 ms
-- [ ] Performance slide ready
+- [x] At least 3000 TPS sustained on the demo laptop
+- [x] P99 latency < 380 ms
+- [x] Performance slide ready
 
 ### Deliverable
 

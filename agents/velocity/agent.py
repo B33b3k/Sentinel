@@ -15,6 +15,8 @@ _DEFAULT_AVG_AMOUNT = 3000.0
 
 
 class VelocityAgent:
+    AGENT_NAME = "velocity"
+
     def __init__(self, redis_url: str = "redis://localhost:6379/0") -> None:
         self._r = redis.Redis.from_url(redis_url, decode_responses=True)
 

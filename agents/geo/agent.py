@@ -17,6 +17,8 @@ _IMPOSSIBLE_KMH = 800.0
 
 
 class GeoAgent:
+    AGENT_NAME = "geo"
+
     def __init__(self, redis_url: str = "redis://localhost:6379/0") -> None:
         self._r = redis.Redis.from_url(redis_url, decode_responses=True)
 
@@ -55,10 +57,11 @@ class GeoAgent:
                     signals.append(0.95)
                     reason_codes.append(f"geo_velocity_impossible:{speed_kmh:.0f}kmh")
 
-        # 3. IP reputation (VPN/proxy)
+        # 3. IP reputation (VPN/proxy) — additive bump on top of current max, capped at 1.0
         prefix = ".".join(tx.ip_address.split(".")[:2])
         if prefix in _VPN_PREFIXES:
-            signals.append(min(1.0, (max(signals) if signals else 0.0) + 0.15))
+            current_max = max(signals) if signals else 0.0
+            signals.append(min(1.0, current_max + 0.15))
             reason_codes.append("vpn_or_proxy")
 
         # 4. SIM recency (mocked via Redis TTL key)

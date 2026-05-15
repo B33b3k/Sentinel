@@ -1,3 +1,64 @@
-def test_sim_swap_scenario_placeholder():
-    """Implemented after OTP interlock lands."""
-    assert True
+"""Scenario 3 — SIM-swap: fraudster has SMS OTP but not email."""
+from __future__ import annotations
+
+import json
+import uuid
+from unittest.mock import MagicMock
+
+import pytest
+
+from agents.otp.interlock import CustomerInfo, OTPInterlock
+from agents.otp.providers import MockProvider
+from tests.scenarios import register
+from tests.scenarios.sita import SITA_FRAUD_TX
+
+
+@register("sim_swap")
+def run_sim_swap() -> dict:
+    fake_r = _fake_redis()
+    sms = MockProvider(redis_url="redis://localhost:6379/0")
+    sms._r = fake_r
+    email = MockProvider(redis_url="redis://localhost:6379/0")
+    email._r = fake_r
+
+    il = OTPInterlock(sms_provider=sms, email_provider=email, redis_url="redis://localhost:6379/0")
+    il._r = fake_r
+
+    customer = CustomerInfo(
+        account_id="ACC_SITA_001",
+        phone="+977-9841234567",
+        email="sita@example.com",
+    )
+    il.trigger(SITA_FRAUD_TX, customer)
+
+    # Read the stored OTPs
+    raw = fake_r.get(f"otp_pending:{SITA_FRAUD_TX.transaction_id}")
+    data = json.loads(raw)
+    correct_sms = data["sms_otp"]
+    wrong_email = "000000"
+
+    result = il.confirm(str(SITA_FRAUD_TX.transaction_id), correct_sms, wrong_email)
+    return result
+
+
+def _fake_redis():
+    store: dict = {}
+    r = MagicMock()
+    r.get.side_effect = lambda k: store.get(k)
+    r.set.side_effect = lambda k, v: store.update({k: v})
+    r.setex.side_effect = lambda k, ttl, v: store.update({k: v})
+    r.delete.side_effect = lambda k: store.pop(k, None)
+    r.keys.side_effect = lambda pat: [k for k in store if k.startswith(pat.replace("*", ""))]
+    r.exists.side_effect = lambda k: k in store
+    return r
+
+
+# ---------------------------------------------------------------------------
+# pytest test
+# ---------------------------------------------------------------------------
+
+@pytest.mark.scenario
+def test_sim_swap_blocked():
+    result = run_sim_swap()
+    assert result["verdict"] == "BLOCK"
+    assert result["reason"] == "sim_swap_alert"
