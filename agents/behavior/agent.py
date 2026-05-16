@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import pathlib
 import pickle
 import time
@@ -30,9 +31,20 @@ class BehaviorAgent:
         self._r = redis.Redis.from_url(redis_url, decode_responses=True)
         self._if_models: dict[str, Any] = {}
         self._lstm_models: dict[str, BehaviorLSTM] = {}
+        self._registry_enabled = os.environ.get("MLFLOW_MODEL_REGISTRY_ENABLED", "false").lower() == "true"
+        self._mlflow_uri = os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5050")
         self._load_models()
 
     def _load_models(self) -> None:
+        if self._registry_enabled:
+            try:
+                self._load_from_registry()
+                if self._if_models:  # success
+                    return
+            except Exception as e:
+                print(f"MLflow registry load failed, falling back to disk: {e}")
+
+        # Fallback to local files
         for path in ARTIFACTS_DIR.glob("if_*.pkl"):
             cohort = path.stem[3:]  # strip "if_"
             with open(path, "rb") as f:
@@ -45,6 +57,35 @@ class BehaviorAgent:
             model.load_state_dict(state)
             model.eval()
             self._lstm_models[cohort] = model
+
+    def _load_from_registry(self) -> None:
+        import mlflow
+        mlflow.set_tracking_uri(self._mlflow_uri)
+        client = mlflow.tracking.MlflowClient()
+        
+        cohorts = ["current_business", "overseas_worker_remittance", "salary_kathmandu", "salary_other", "savings_rural", "savings_urban"]
+        for cohort in cohorts:
+            try:
+                # Load IF
+                if_name = f"if_{cohort}"
+                if_mv = client.get_latest_versions(if_name, stages=["Production"])
+                if if_mv:
+                    local_path = mlflow.artifacts.download_artifacts(artifact_uri=if_mv[0].source)
+                    with open(local_path, "rb") as f:
+                        self._if_models[cohort] = pickle.load(f)
+                
+                # Load LSTM
+                lstm_name = f"lstm_{cohort}"
+                lstm_mv = client.get_latest_versions(lstm_name, stages=["Production"])
+                if lstm_mv:
+                    local_path = mlflow.artifacts.download_artifacts(artifact_uri=lstm_mv[0].source)
+                    model = BehaviorLSTM(input_dim=len(FEATURE_COLS))
+                    state = torch.load(local_path, map_location=_DEVICE, weights_only=True)
+                    model.load_state_dict(state)
+                    model.eval()
+                    self._lstm_models[cohort] = model
+            except Exception as e:
+                print(f"Failed to load {cohort} from registry: {e}")
 
     def score(self, tx: TransactionEvent, account_meta: AccountMeta | None = None) -> AgentScore:
         t0 = time.perf_counter()

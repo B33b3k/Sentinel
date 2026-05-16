@@ -1,42 +1,93 @@
-:root {
-  color: #17202a;
-  background: #f7f9fb;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-primary: #0a0e1a;
+    --bg-secondary: #111827;
+    --bg-tertiary: #1f2937;
+    --accent-emerald: #10b981;
+    --accent-amber: #f59e0b;
+    --accent-red: #ef4444;
+    --accent-blue: #3b82f6;
+  }
+  
+  body {
+    @apply bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950;
+    @apply text-gray-100 antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    margin: 0;
+    padding: 0;
+  }
 }
 
-body {
-  margin: 0;
+@layer utilities {
+  .glass {
+    @apply bg-slate-900/40 backdrop-blur-xl border border-slate-800/50;
+  }
+  
+  .glass-hover {
+    @apply hover:bg-slate-800/60 hover:border-slate-700/70 transition-all duration-200;
+  }
+  
+  .glow-emerald {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+  }
+  
+  .glow-amber {
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+  }
+  
+  .glow-red {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-slate-900/50;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-slate-700 rounded-full;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-600;
+  }
 }
 
-.shell {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 32px;
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.status-panel {
-  width: min(720px, 100%);
-  border: 1px solid #d7dee8;
-  border-radius: 8px;
-  background: #ffffff;
-  padding: 32px;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-.eyebrow {
-  margin: 0 0 12px;
-  color: #006b5f;
-  font-size: 13px;
-  font-weight: 700;
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
 }
 
-h1 {
-  margin: 0 0 12px;
-  font-size: 32px;
-  line-height: 1.15;
-}
-
-p {
-  margin: 0;
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
 }

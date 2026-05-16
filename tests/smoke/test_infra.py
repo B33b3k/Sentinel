@@ -90,7 +90,7 @@ def test_postgres_connects():
 
 def test_mlflow_health_endpoint():
     def check():
-        with urllib.request.urlopen("http://localhost:5000/health", timeout=3) as response:
+        with urllib.request.urlopen("http://localhost:5050/health", timeout=3) as response:
             return response.status == 200
 
     assert _wait_until(check)

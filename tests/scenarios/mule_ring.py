@@ -35,10 +35,10 @@ def run_mule_ring() -> dict:
     synth = SynthesisAgent()
     # GNN detects mule ring → high score
     scores = [
-        AgentScore(agent="velocity", score=0.20, reason_codes=[], latency_ms=3),
-        AgentScore(agent="geo",      score=0.15, reason_codes=[], latency_ms=5),
-        AgentScore(agent="behavior", score=0.30, reason_codes=[], latency_ms=20),
-        AgentScore(agent="gnn",      score=0.92, reason_codes=["mule_ring_detected"], latency_ms=8),
+        AgentScore(agent="velocity", score=0.20, reason_codes=[], latency_ms=14.2),
+        AgentScore(agent="geo",      score=0.15, reason_codes=[], latency_ms=22.5),
+        AgentScore(agent="behavior", score=0.30, reason_codes=[], latency_ms=58.3),
+        AgentScore(agent="gnn",      score=0.92, reason_codes=["mule_ring_detected"], latency_ms=46.8),
     ]
     verdict = synth.synthesize(_MULE_TX, scores)
     return verdict.model_dump()

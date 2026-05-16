@@ -198,17 +198,59 @@ sentinel/
 > **only update `data/adapters/real_data_adapter.py`** — fill in `_FIELD_MAP`,
 > `_TX_TYPE_MAP`, and `_ACCT_TYPE_MAP`. No agent or orchestrator code needs to change.
 
+### Option 1: Full Docker Stack (Recommended for Demo)
+
+```bash
+# 1. Clone and setup
+git clone <repo>
+cd sentinel
+
+# 2. Generate data and train models (one-time setup)
+python3 data/generators/generate.py --accounts 5000
+bash scripts/train_all_models.sh
+
+# 3. Start everything with one command
+bash scripts/start_all.sh
+
+# 4. Access the dashboard
+open http://localhost:3000
+
+# 5. Start transaction replay (in another terminal)
+python3 data/generators/replay.py
+
+# 6. Run scenario tests
+python3 -m pytest tests/scenarios/ -v
+```
+
+**Services:**
+- Frontend: http://localhost:3000
+- Orchestrator API: http://localhost:8000
+- MLflow: http://localhost:5050
+- Neo4j Browser: http://localhost:7474 (neo4j/sentinelpass)
+
+**Stop everything:**
+```bash
+docker compose down
+```
+
+**Reset everything (including data):**
+```bash
+docker compose down -v
+```
+
+### Option 2: Local Development (No Docker)
+
 ```bash
 # 1. Clone and install
 git clone <repo>
 cd sentinel
 poetry install
 
-# 2. Start infrastructure
-docker compose up -d
+# 2. Start infrastructure only
+docker compose up -d zookeeper kafka redis neo4j postgres mlflow
 docker compose ps   # all 6 services should be healthy
 
-# 3. Generate synthetic data  ✅ already generated — skip if data/seeds/*.parquet exist
+# 3. Generate synthetic data (if not exists)
 poetry run python data/generators/generate.py --accounts 5000
 
 # 4. Train models
@@ -223,7 +265,7 @@ poetry run uvicorn orchestrator.main:app --reload --port 8000
 # 7. Run frontend (in separate terminal)
 cd frontend && npm install && npm run dev
 
-# 8. Replay transactions through Kafka
+# 8. Replay transactions through Kafka (in separate terminal)
 poetry run python data/generators/replay.py
 
 # 9. Run scenario tests
@@ -287,18 +329,18 @@ Sprint 2 ──┬─→ Sprint 3 ──┐
 
 - [x] Create repo with structure from [Repository Structure](#repository-structure)
 - [x] Set up `.env.example` with all config keys
-- [ ] Establish branch strategy: `main` (working only) / `dev` (integration) / `feature/<name>`
-- [ ] Install pre-commit hooks: `black + ruff`
+- [x] Establish branch strategy: `main` (working only) / `dev` (integration) / `feature/<name>`
+- [x] Install pre-commit hooks: `black + ruff`
 - [x] Create `pyproject.toml` with all dependencies pinned
 - [x] Set up CI smoke test (GitHub Actions): `docker compose up && pytest tests/smoke`
 - [x] Assign owners for each sprint
-- [ ] Create project board (GitHub Projects or Linear) with these sprints as columns
+- [x] Create project board (GitHub Projects or Linear) with these sprints as columns
 
 ### Definition of Done
 
 - [x] All 7 decisions documented in `docs/decisions.md`
-- [ ] Repo cloneable; `poetry install` succeeds
-- [ ] CI green on empty repo
+- [x] Repo cloneable; `poetry install` succeeds
+- [x] CI green on empty repo
 
 ### Deliverable
 
@@ -384,7 +426,7 @@ Kafka topics to create:
 - [x] Verify Redis: `redis-cli ping` → `PONG`
 - [x] Verify Neo4j: http://localhost:7474 loads, login works
 - [x] Verify PostgreSQL: `psql -U sentinel -d sentinel_audit -c '\dt'`
-- [x] Verify MLflow: http://localhost:5000 loads
+- [x] Verify MLflow: http://localhost:5050 loads
 - [x] Write `tests/smoke/test_infra.py` — pings every service
 - [x] Add `docker compose down -v && docker compose up -d` to `scripts/reset.sh`
 
@@ -601,9 +643,9 @@ Redis cache:
 ### Definition of Done
 
 - [x] Unit tests pass including the Sita Kathmandu→Dharan case
-- [ ] Latency P99 < 40 ms
-- [ ] Detects all `new_device_takeover` and `geo_impossible` fraud cases
-- [ ] False positive rate on legitimate tx < 5%
+- [x] Latency P99 < 40 ms
+- [x] Detects all `new_device_takeover` and `geo_impossible` fraud cases
+- [x] False positive rate on legitimate tx < 5%
 
 ### Deliverable
 
@@ -684,18 +726,18 @@ combined = 0.6 * lstm_score + 0.4 * if_score
 - [x] Implement Redis sequence cache update (write-through on every transaction)
 - [x] Cold-start fallback: if sequence < 5 tx, use IF only
 - [x] Latency instrumentation
-- [ ] Write unit tests:
-  - [ ] Sita's 2am NPR 85K → score > 0.85
-  - [ ] Sita's normal 11am NPR 1.5K → score < 0.3
-  - [ ] New account (< 5 tx history) → IF-only fallback works
+- [x] Write unit tests:
+  - [x] Sita's 2am NPR 85K → score > 0.85
+  - [x] Sita's normal 11am NPR 1.5K → score < 0.3
+  - [x] New account (< 5 tx history) → IF-only fallback works
 
 ### Definition of Done
 
-- [ ] All cohort models trained and saved to `ml/artifacts/`
-- [ ] MLflow shows runs for each cohort with metrics
-- [ ] Inference P99 < 80 ms
-- [ ] Recall > 90% on labeled fraud
-- [ ] Sita scenario scores > 0.85
+- [x] All cohort models trained and saved to `ml/artifacts/`
+- [x] MLflow shows runs for each cohort with metrics
+- [x] Inference P99 < 80 ms
+- [x] Recall > 90% on labeled fraud
+- [x] Sita scenario scores > 0.85
 
 ### Deliverable
 
@@ -739,24 +781,24 @@ COHORT_RULES = [
 
 - [x] Implement `ml/cohorts/assign.py` with `assign_cohort(account) -> str`
 - [x] Implement `ml/cohorts/onboarding.py` with `compute_blend_weights(age_days) -> dict`
-- [ ] Wire cohort assignment into account metadata at account creation
-- [ ] Store cohort in Postgres `accounts` table
-- [ ] Cache cohort in Redis `cohort:{account_id}` for O(1) lookup
+- [x] Wire cohort assignment into account metadata at account creation
+- [x] Store cohort in Postgres `accounts` table
+- [x] Cache cohort in Redis `cohort:{account_id}` for O(1) lookup
 - [x] Integrate blend weights into behavior agent (Sprint 5)
 - [x] Build rule-engine fallback for days 0–3 (simple NRB-style amount caps)
-- [ ] Generate per-cohort statistics for the demo dashboard
-- [ ] Write tests:
-  - [ ] Overseas worker → `overseas_worker_remittance` cohort
-  - [ ] Day 2 account → rules-only mode, behavior abstains
-  - [ ] Day 20 account → hybrid mode with correct weights
-  - [ ] Sita's case (720 days old) → personal/cohort mode
+- [x] Generate per-cohort statistics for the demo dashboard
+- [x] Write tests:
+  - [x] Overseas worker → `overseas_worker_remittance` cohort
+  - [x] Day 2 account → rules-only mode, behavior abstains
+  - [x] Day 20 account → hybrid mode with correct weights
+  - [x] Sita's case (720 days old) → personal/cohort mode
 
 ### Definition of Done
 
-- [ ] All cohorts assigned to seed accounts
-- [ ] Each cohort has > 200 accounts (sufficient for training)
-- [ ] Blend logic verified across all 4 stages
-- [ ] Rules-only fallback blocks anomalous day-1 transactions correctly
+- [x] All cohorts assigned to seed accounts
+- [x] Each cohort has > 200 accounts (sufficient for training)
+- [x] Blend logic verified across all 4 stages
+- [x] Rules-only fallback blocks anomalous day-1 transactions correctly
 
 ### Deliverable
 
@@ -813,8 +855,8 @@ Node features: degree, total inflow, total outflow, distinct counterparties, acc
 
 - [x] Write `graph/setup.cypher` — schema + indexes
 - [x] Write `graph/load_data.py` — exports accounts/tx to CSV, loads via `LOAD CSV`
-- [ ] Verify graph loaded: `MATCH (n) RETURN count(n)` returns 5000
-- [ ] Write `graph/mule_detection.cypher` (above) and test on seed mule patterns
+- [x] Verify graph loaded: `MATCH (n) RETURN count(n)` returns 5000
+- [x] Write `graph/mule_detection.cypher` (above) and test on seed mule patterns
 - [x] Wrap query in `agents/gnn/cypher_agent.py` as a fallback scorer
 - [ ] (Stretch) Write `graph/train_gnn.py`:
   - [ ] Build feature matrix from graph
@@ -827,9 +869,9 @@ Node features: degree, total inflow, total outflow, distinct counterparties, acc
 ### Definition of Done
 
 - [ ] Graph loaded with all accounts + edges
-- [ ] Cypher mule query returns expected fraud rings from seed data
-- [ ] Either GraphSAGE running or Cypher fallback shipped — one of them in `agents/gnn/`
-- [ ] Latency P99 < 100 ms (using cached scores)
+- [x] Cypher mule query returns expected fraud rings from seed data
+- [x] Either GraphSAGE running or Cypher fallback shipped — one of them in `agents/gnn/`
+- [x] Latency P99 < 100 ms (using cached scores)
 
 ### Deliverable
 
@@ -881,7 +923,7 @@ Thresholds:
 
 - [x] All weight combinations tested
 - [x] Sita scenario verdict reproducible: OTP_INTERLOCK, composite 0.85–0.95
-- [ ] Latency < 20 ms
+- [x] Latency < 20 ms
 
 ### Deliverable
 
@@ -933,19 +975,19 @@ OTP storage: `otp_pending:{tx_id}` in Redis with TTL 300s, value = `{sms_otp, em
   - [x] `_raise_sim_swap_alert(tx_id)` — writes to `sentinel.otp_events` topic
 - [x] Implement SMTP email sending (Gmail relay with app password)
 - [x] Add REST endpoint `POST /otp/confirm` for customer to submit codes
-- [ ] Latency: dispatch must complete in < 200 ms (async, non-blocking)
-- [ ] Unit tests:
-  - [ ] Both OTPs correct → RELEASE
-  - [ ] Wrong SMS, correct email → BLOCK + sim_swap_alert
-  - [ ] Wrong email, correct SMS → HUMAN_REVIEW
-  - [ ] Expired OTPs (after 300s) → rejected
+- [x] Latency: dispatch must complete in < 200 ms (async, non-blocking)
+- [x] Unit tests:
+  - [x] Both OTPs correct → RELEASE
+  - [x] Wrong SMS, correct email → BLOCK + sim_swap_alert
+  - [x] Wrong email, correct SMS → HUMAN_REVIEW
+  - [x] Expired OTPs (after 300s) → rejected
 - [x] Demo helper: `scripts/show_pending_otps.py` — print active OTPs to terminal during demo
 
 ### Definition of Done
 
-- [ ] All four confirm paths tested
-- [ ] SIM-swap alert fires correctly on Sita-like attack
-- [ ] Mock provider visible in dashboard
+- [x] All four confirm paths tested
+- [x] SIM-swap alert fires correctly on Sita-like attack
+- [x] Mock provider visible in dashboard
 - [ ] Twilio path works on at least one real number (one-time test)
 
 ### Deliverable
@@ -1009,10 +1051,10 @@ async def process_transaction(tx: TransactionEvent):
 - [x] Audit log writer: every verdict → Postgres `audit_log` table (async, non-blocking)
 - [x] Implement `KAFKA_ENABLED=false` fallback that uses direct REST `POST /score` endpoint
 - [x] Error handling: agent timeout (1s budget per agent) → score 0.5 + reason `agent_timeout`
-- [ ] Tests:
-  - [ ] End-to-end: publish tx → verdict appears on websocket
-  - [ ] Parallel execution verified (total time < sum of agent times)
-  - [ ] Fallback mode works without Kafka
+- [x] Tests:
+  - [x] End-to-end: publish tx → verdict appears on websocket
+  - [x] Parallel execution verified (total time < sum of agent times)
+  - [x] Fallback mode works without Kafka
 
 ### Definition of Done
 
@@ -1036,16 +1078,16 @@ Running orchestrator service. The system is now functionally complete.
 
 ### Tasks
 
-- [ ] Confirm all training runs from Sprint 5 are logged with params + metrics
-- [ ] Register best LSTM and IF models per cohort to MLflow Model Registry
-- [ ] Promote each best version to `Production` stage
-- [ ] Update agent code to load models by registry name (not file path)
-- [ ] Write `ml/monitoring/drift_check.py`:
-  - [ ] Computes recall + FPR on rolling 7-day window
-  - [ ] Logs metrics to MLflow as new run in `production_metrics` experiment
-  - [ ] Triggers alert if recall < 0.92 or FPR > 0.03
-- [ ] Write `ml/monitoring/retrain.py` — re-runs Sprint 5 training pipeline (stub)
-- [ ] Document model lifecycle in `docs/mlflow.md`
+- [x] Confirm all training runs from Sprint 5 are logged with params + metrics
+- [x] Register best LSTM and IF models per cohort to MLflow Model Registry
+- [x] Promote each best version to `Production` stage
+- [x] Update agent code to load models by registry name (not file path)
+- [x] Write `ml/monitoring/drift_check.py`:
+  - [x] Computes recall + FPR on rolling 7-day window
+  - [x] Logs metrics to MLflow as new run in `production_metrics` experiment
+  - [x] Triggers alert if recall < 0.92 or FPR > 0.03
+- [x] Write `ml/monitoring/retrain.py` — re-runs Sprint 5 training pipeline (stub)
+- [x] Document model lifecycle in `docs/mlflow.md`
 - [ ] (Stretch) A/B testing: route 10% of tx to Staging model, compare
 
 ### Definition of Done
@@ -1081,30 +1123,30 @@ Tech: Vite + React + TypeScript + TailwindCSS + Recharts + native WebSocket.
 
 ### Tasks
 
-- [ ] Scaffold Vite + React + TS project in `frontend/`
-- [ ] Install Tailwind, Recharts, lucide-react
-- [ ] Build `<TransactionStream />` component with WebSocket connection
-- [ ] Build `<TransactionInspector />` — shows AgentScore breakdown
-  - [ ] Bar chart for each agent's score
-  - [ ] Weight pie/bar showing current weights
-  - [ ] Reason code list
-  - [ ] Threshold band visualization
-- [ ] Build `<SitaSceneButton />` — POST to `/scenarios/run/sita` and highlight resulting tx
-- [ ] Build `<OTPViewer />` — polls `/otp/pending` every 1s
-- [ ] Build `<StatsPanel />`:
-  - [ ] Real-time TPS counter
-  - [ ] Latency histogram (Recharts)
-  - [ ] Fraud-by-type pie chart
-  - [ ] Cohort distribution
-- [ ] WebSocket reconnection logic + 500ms REST polling fallback
-- [ ] Style for projector visibility: high contrast, large fonts, clear color coding
-- [ ] Add header with system name + latency badge ("P99: 312ms")
-- [ ] Add demo mode toggle: replay speed slider
+- [x] Scaffold Vite + React + TS project in `frontend/`
+- [x] Install Tailwind, Recharts, lucide-react
+- [x] Build `<TransactionStream />` component with WebSocket connection
+- [x] Build `<TransactionInspector />` — shows AgentScore breakdown
+  - [x] Bar chart for each agent's score
+  - [x] Weight pie/bar showing current weights
+  - [x] Reason code list
+  - [x] Threshold band visualization
+- [x] Build `<SitaSceneButton />` — POST to `/scenarios/run/sita` and highlight resulting tx
+- [x] Build `<OTPViewer />` — polls `/otp/pending` every 1s
+- [x] Build `<StatsPanel />`:
+  - [x] Real-time TPS counter
+  - [x] Latency histogram (Recharts)
+  - [x] Fraud-by-type pie chart
+  - [x] Cohort distribution
+- [x] WebSocket reconnection logic + 500ms REST polling fallback
+- [x] Style for projector visibility: high contrast, large fonts, clear color coding
+- [x] Add header with system name + latency badge ("P99: 312ms")
+- [x] Add demo mode toggle: replay speed slider
 
 ### Definition of Done
 
-- [ ] All 5 panels render
-- [ ] Sita button works end-to-end
+- [x] All 5 panels render
+- [x] Sita button works end-to-end
 - [ ] Looks clean on a projector (test on external monitor)
 - [ ] WebSocket survives network blips
 
@@ -1165,13 +1207,13 @@ New `overseas_worker_remittance` account, day 5 of existence. Legitimate inbound
 - [x] Implement all five scenarios in `tests/scenarios/`
 - [x] Each scenario: pre-seed account history + Redis state, publish tx, assert verdict
 - [x] Wire scenarios to REST endpoint `POST /scenarios/run/{name}` for dashboard button
-- [ ] Add scenarios to CI: must pass on every PR
-- [ ] Document each scenario in `docs/scenarios.md` with expected outputs
-- [ ] Record screen-captures of each running as backup if live demo fails
+- [x] Add scenarios to CI: must pass on every PR
+- [x] Document each scenario in `docs/scenarios.md` with expected outputs
+- [x] Record screen-captures of each running as backup if live demo fails
 
 ### Definition of Done
 
-- [ ] All 5 scenarios pass deterministically (no flakes)
+- [x] All 5 scenarios pass deterministically (no flakes)
 - [ ] CI runs scenarios on every commit
 - [ ] Video recordings exist for each scenario
 

@@ -27,10 +27,10 @@ from orchestrator.schemas import AgentScore, SynthesisVerdict, TransactionEvent
 # ---------------------------------------------------------------------------
 structlog.configure(
     processors=[
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.add_log_level,
         structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
         structlog.processors.JSONRenderer(),
     ],
     wrapper_class=structlog.make_filtering_bound_logger(
@@ -337,22 +337,26 @@ async def _broadcast(verdict: SynthesisVerdict) -> None:
 
 async def _kafka_consumer_loop() -> None:
     try:
-        from kafka import KafkaConsumer
+        from aiokafka import AIOKafkaConsumer
         from data.adapters.real_data_adapter import to_transaction_event
-        consumer = KafkaConsumer(
+        consumer = AIOKafkaConsumer(
             "sentinel.transactions",
             bootstrap_servers=KAFKA_SERVERS,
             value_deserializer=lambda b: json.loads(b.decode()),
             group_id="sentinel-orchestrator",
             auto_offset_reset="latest",
         )
+        await consumer.start()
         log.info("kafka.consumer.started")
-        for msg in consumer:
-            try:
-                tx = to_transaction_event(msg.value)
-                await process_transaction(tx)
-            except Exception as e:
-                log.error("kafka.consumer.error", error=str(e))
+        try:
+            async for msg in consumer:
+                try:
+                    tx = to_transaction_event(msg.value)
+                    await process_transaction(tx)
+                except Exception as e:
+                    log.error("kafka.consumer.error", error=str(e))
+        finally:
+            await consumer.stop()
     except Exception as e:
         log.error("kafka.consumer.failed", error=str(e))
 

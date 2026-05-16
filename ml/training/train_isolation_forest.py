@@ -18,7 +18,7 @@ ARTIFACTS_DIR = pathlib.Path("ml/artifacts")
 ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def train_all(mlflow_uri: str = "http://localhost:5000") -> None:
+def train_all(mlflow_uri: str = "http://localhost:5050") -> None:
     mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment("isolation_forest")
 

@@ -16,7 +16,7 @@ FPR_THRESHOLD = 0.03
 
 def run_drift_check(
     window_days: int = 7,
-    mlflow_uri: str = "http://localhost:5000",
+    mlflow_uri: str = "http://localhost:5050",
     verdicts_path: str | None = None,
 ) -> dict:
     """

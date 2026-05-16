@@ -50,7 +50,11 @@ class SynthesisAgent:
         else:
             verdict = "BLOCK"
 
-        latency_ms = (time.perf_counter() - t0) * 1000
+        # Calculate total latency: sum of all agent latencies + synthesis overhead
+        agent_latency_sum = sum(s.latency_ms for s in augmented_scores)
+        synthesis_overhead = (time.perf_counter() - t0) * 1000
+        total_latency = agent_latency_sum + synthesis_overhead
+        
         return SynthesisVerdict(
             transaction_id=tx.transaction_id,
             composite_score=composite,
@@ -58,5 +62,5 @@ class SynthesisAgent:
             agent_scores=augmented_scores,
             weights_used=weights,
             transaction_type=tx.transaction_type,
-            total_latency_ms=round(latency_ms, 2),
+            total_latency_ms=round(total_latency, 2),
         )

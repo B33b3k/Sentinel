@@ -59,10 +59,10 @@ def run_sita() -> dict:
     synth = SynthesisAgent()
     from orchestrator.schemas import AgentScore
     fraud_scores = [
-        AgentScore(agent="velocity", score=0.75, reason_codes=["freq_burst_2m"], latency_ms=5),
-        AgentScore(agent="geo",      score=0.95, reason_codes=["new_device", "geo_velocity_impossible:1200kmh"], latency_ms=8),
-        AgentScore(agent="behavior", score=0.85, reason_codes=["mode:ensemble_cohort=savings_urban"], latency_ms=40),
-        AgentScore(agent="gnn",      score=0.05, reason_codes=["no_mule_pattern"], latency_ms=2),
+        AgentScore(agent="velocity", score=0.75, reason_codes=["freq_burst_2m"], latency_ms=15.3),
+        AgentScore(agent="geo",      score=0.95, reason_codes=["new_device", "geo_velocity_impossible:1200kmh"], latency_ms=24.7),
+        AgentScore(agent="behavior", score=0.85, reason_codes=["mode:ensemble_cohort=savings_urban"], latency_ms=68.2),
+        AgentScore(agent="gnn",      score=0.05, reason_codes=["no_mule_pattern"], latency_ms=42.1),
     ]
     verdict = synth.synthesize(SITA_FRAUD_TX, fraud_scores)
     return verdict.model_dump()
@@ -74,10 +74,10 @@ def run_sita_legit() -> dict:
     from orchestrator.schemas import AgentScore
     synth = SynthesisAgent()
     legit_scores = [
-        AgentScore(agent="velocity", score=0.05, reason_codes=[], latency_ms=3),
-        AgentScore(agent="geo",      score=0.05, reason_codes=[], latency_ms=5),
-        AgentScore(agent="behavior", score=0.08, reason_codes=[], latency_ms=35),
-        AgentScore(agent="gnn",      score=0.05, reason_codes=[], latency_ms=2),
+        AgentScore(agent="velocity", score=0.05, reason_codes=[], latency_ms=12.8),
+        AgentScore(agent="geo",      score=0.05, reason_codes=[], latency_ms=18.3),
+        AgentScore(agent="behavior", score=0.08, reason_codes=[], latency_ms=52.1),
+        AgentScore(agent="gnn",      score=0.05, reason_codes=[], latency_ms=38.9),
     ]
     verdict = synth.synthesize(SITA_LEGIT_TX, legit_scores)
     return verdict.model_dump()

@@ -54,19 +54,19 @@ def run_cold_start() -> dict:
     synth = SynthesisAgent()
     # Legit inbound — cohort model passes
     legit_scores = [
-        AgentScore(agent="velocity", score=0.10, reason_codes=[], latency_ms=3),
-        AgentScore(agent="geo",      score=0.10, reason_codes=[], latency_ms=5),
-        AgentScore(agent="behavior", score=0.15, reason_codes=["mode:if_only"], latency_ms=20),
-        AgentScore(agent="gnn",      score=0.05, reason_codes=[], latency_ms=2),
+        AgentScore(agent="velocity", score=0.10, reason_codes=[], latency_ms=14.2),
+        AgentScore(agent="geo",      score=0.10, reason_codes=[], latency_ms=39.42),
+        AgentScore(agent="behavior", score=0.15, reason_codes=["mode:if_only"], latency_ms=39.40),
+        AgentScore(agent="gnn",      score=0.05, reason_codes=[], latency_ms=39.4),
     ]
     legit_verdict = synth.synthesize(_NEW_ACCT_LEGIT, legit_scores)
 
     # Suspicious outbound — new device + VPN + high amount
     sus_scores = [
-        AgentScore(agent="velocity", score=0.30, reason_codes=[], latency_ms=3),
-        AgentScore(agent="geo",      score=0.80, reason_codes=["new_device", "vpn_or_proxy"], latency_ms=5),
-        AgentScore(agent="behavior", score=0.70, reason_codes=["mode:if_only"], latency_ms=20),
-        AgentScore(agent="gnn",      score=0.05, reason_codes=[], latency_ms=2),
+        AgentScore(agent="velocity", score=0.30, reason_codes=[], latency_ms=14.2),
+        AgentScore(agent="geo",      score=0.80, reason_codes=["new_device", "vpn_or_proxy"], latency_ms=39.42),
+        AgentScore(agent="behavior", score=0.70, reason_codes=["mode:if_only"], latency_ms=39.40),
+        AgentScore(agent="gnn",      score=0.05, reason_codes=[], latency_ms=39.4),
     ]
     sus_verdict = synth.synthesize(_NEW_ACCT_SUSPICIOUS, sus_scores)
 

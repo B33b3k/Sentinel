@@ -1,4 +1,8 @@
-"""Scenario 3 — SIM-swap: fraudster has SMS OTP but not email."""
+"""Scenario 3 — SIM-swap: attacker has email access but SMS went to stolen SIM.
+
+State machine: SMS✗ + Email✓ → BLOCK + sim_swap_alert
+The real owner still has email but their SMS OTP was intercepted via SIM swap.
+"""
 from __future__ import annotations
 
 import json
@@ -34,10 +38,12 @@ def run_sim_swap() -> dict:
     # Read the stored OTPs
     raw = fake_r.get(f"otp_pending:{SITA_FRAUD_TX.transaction_id}")
     data = json.loads(raw)
-    correct_sms = data["sms_otp"]
-    wrong_email = "000000"
+    # Attacker submits wrong SMS (they don't have it) but correct email
+    # → SMS✗ + Email✓ → BLOCK + sim_swap_alert
+    wrong_sms = "000000"
+    correct_email = data["email_otp"]
 
-    result = il.confirm(str(SITA_FRAUD_TX.transaction_id), correct_sms, wrong_email)
+    result = il.confirm(str(SITA_FRAUD_TX.transaction_id), wrong_sms, correct_email)
     return result
 
 

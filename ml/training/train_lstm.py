@@ -70,7 +70,7 @@ def _build_sequences(grp: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
     return np.array(seqs), np.array(labs)
 
 
-def train_all(mlflow_uri: str = "http://localhost:5000") -> None:
+def train_all(mlflow_uri: str = "http://localhost:5050") -> None:
     mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment("behavior_lstm")
 

@@ -49,24 +49,34 @@ def to_transaction_event(raw: dict[str, Any]) -> TransactionEvent:
     even before the real format is confirmed.
     """
     mapped = _map_fields(raw)
+    
+    # Identify fields that are already mapped to TransactionEvent attributes
+    known_fields = {
+        "transaction_id", "account_id", "timestamp", "amount_npr", "currency",
+        "transaction_type", "counterparty_id", "counterparty_name",
+        "device_id", "ip_address", "geo_lat", "geo_lon", "geo_city", "geo_district",
+        "account_age_days", "account_home_district", "account_type"
+    }
+    
     return TransactionEvent(
         transaction_id=_get(mapped, "transaction_id", str(uuid.uuid4())),
         account_id=_get(mapped, "account_id", "UNKNOWN"),
         timestamp=_parse_ts(_get(mapped, "timestamp", None)),
-        amount_npr=float(_get(mapped, "amount_npr", 0.0)),
+        amount_npr=_to_float(_get(mapped, "amount_npr", 0.0)),
         currency=_get(mapped, "currency", "NPR"),
         transaction_type=_parse_transaction_type(_get(mapped, "transaction_type", "")),
         counterparty_id=_get(mapped, "counterparty_id", None),
         counterparty_name=_get(mapped, "counterparty_name", None),
         device_id=_get(mapped, "device_id", "unknown"),
         ip_address=_get(mapped, "ip_address", "0.0.0.0"),
-        geo_lat=float(_get(mapped, "geo_lat", 0.0)),
-        geo_lon=float(_get(mapped, "geo_lon", 0.0)),
+        geo_lat=_to_float(_get(mapped, "geo_lat", 0.0)),
+        geo_lon=_to_float(_get(mapped, "geo_lon", 0.0)),
         geo_city=_get(mapped, "geo_city", "unknown"),
         geo_district=_get(mapped, "geo_district", "unknown"),
-        account_age_days=int(_get(mapped, "account_age_days", 0)),
+        account_age_days=_to_int(_get(mapped, "account_age_days", 0)),
         account_home_district=_get(mapped, "account_home_district", "unknown"),
         account_type=_parse_account_type(_get(mapped, "account_type", "")),
+        extra={k: v for k, v in raw.items() if k not in known_fields and k not in _FIELD_MAP}
     )
 
 
@@ -110,3 +120,17 @@ def _parse_transaction_type(raw: str) -> str:
 
 def _parse_account_type(raw: str) -> str:
     return _ACCT_TYPE_MAP.get(raw, raw) if raw else "UNKNOWN"
+
+
+def _to_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _to_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default

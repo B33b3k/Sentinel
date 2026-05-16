@@ -16,3 +16,6 @@ frontend/dist/
 data/seeds/*.parquet
 ml/artifacts/*
 !ml/artifacts/.gitkeep
+mlflow.db
+mlruns/
+*.log
