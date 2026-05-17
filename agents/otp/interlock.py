@@ -31,8 +31,8 @@ class OTPInterlock:
         redis_url: str = "redis://localhost:6379/0",
         kafka_producer=None,
     ) -> None:
-        self._sms = sms_provider or get_sms_provider()
-        self._email = email_provider or get_email_provider()
+        self._sms = sms_provider or get_sms_provider(redis_url=redis_url)
+        self._email = email_provider or get_email_provider(redis_url=redis_url)
         self._r = redis.Redis.from_url(redis_url, decode_responses=True)
         self._producer = kafka_producer
 
@@ -40,7 +40,7 @@ class OTPInterlock:
     # Public API
     # ------------------------------------------------------------------
 
-    def trigger(self, tx: TransactionEvent, customer: CustomerInfo) -> bool:
+    async def trigger(self, tx: TransactionEvent, customer: CustomerInfo) -> bool:
         """Freeze tx, generate 2 OTPs, dispatch both. Returns True if dispatched."""
         sms_code = _gen_code()
         email_code = _gen_code()
@@ -61,7 +61,7 @@ class OTPInterlock:
         email_ok = self._email.send(customer.email, email_code)
         return sms_ok and email_ok
 
-    def confirm(self, tx_id: str, sms_attempt: str, email_attempt: str) -> dict:
+    async def confirm(self, tx_id: str, sms_attempt: str, email_attempt: str) -> dict:
         """
         State machine:
           SMS✓ + Email✓ → RELEASE
@@ -83,7 +83,7 @@ class OTPInterlock:
             return {"verdict": "RELEASE"}
 
         if not sms_ok and email_ok:
-            self._raise_sim_swap_alert(tx_id, data)
+            await self._raise_sim_swap_alert(tx_id, data)
             return {"verdict": "BLOCK", "reason": "sim_swap_alert"}
 
         if sms_ok and not email_ok:
@@ -121,7 +121,7 @@ class OTPInterlock:
     def _unfreeze_and_release(self, tx_id: str) -> None:
         self._r.delete(f"tx_hold:{tx_id}")
 
-    def _raise_sim_swap_alert(self, tx_id: str, data: dict) -> None:
+    async def _raise_sim_swap_alert(self, tx_id: str, data: dict) -> None:
         alert = {
             "event": "sim_swap_alert",
             "tx_id": tx_id,
@@ -130,7 +130,7 @@ class OTPInterlock:
         }
         if self._producer:
             try:
-                self._producer.send("sentinel.otp_events", alert)
+                await self._producer.send("sentinel.otp_events", alert)
             except Exception:
                 pass
         print(f"[SIM-SWAP ALERT] tx={tx_id} account={data['account_id']}")

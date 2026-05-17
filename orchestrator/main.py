@@ -79,29 +79,39 @@ async def lifespan(app: FastAPI):
     synthesis = SynthesisAgent()
 
     if KAFKA_ENABLED:
+        # Start consumer loop (uses aiokafka, which is fine in 3.12)
+        asyncio.create_task(_kafka_consumer_loop())
+        
         try:
-            from kafka import KafkaProducer
-            producer = KafkaProducer(
+            from aiokafka import AIOKafkaProducer
+            producer = AIOKafkaProducer(
                 bootstrap_servers=KAFKA_SERVERS,
                 value_serializer=lambda v: json.dumps(v, default=str).encode(),
             )
-            asyncio.create_task(_kafka_consumer_loop())
-            log.info("kafka.connected", servers=KAFKA_SERVERS)
+            await producer.start()
+            log.info("kafka.producer.connected", servers=KAFKA_SERVERS)
         except Exception as e:
-            log.warning("kafka.unavailable", error=str(e))
+            log.warning("kafka.producer.unavailable", error=str(e))
 
     interlock = OTPInterlock(redis_url=REDIS_URL, kafka_producer=producer)
     await _ensure_audit_table()
     log.info("sentinel.ready")
     yield
     if producer:
-        producer.flush()
-        producer.close()
+        await producer.stop()
     log.info("sentinel.shutdown")
 
 
 app = FastAPI(title="SENTINEL Orchestrator", version="0.1.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# Robust CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex="https?://.*",  # Permissive for development/demo
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ---------------------------------------------------------------------------
@@ -146,11 +156,11 @@ async def process_transaction(tx: TransactionEvent) -> SynthesisVerdict:
 
     if verdict.verdict == "OTP_INTERLOCK":
         customer = _get_customer(tx.account_id)
-        asyncio.create_task(asyncio.to_thread(interlock.trigger, tx, customer))
+        asyncio.create_task(interlock.trigger(tx, customer))
         tx_log.info("otp.triggered", phone=customer.phone, email=customer.email)
 
     if producer:
-        producer.send("sentinel.verdicts", verdict.model_dump())
+        await producer.send("sentinel.verdicts", verdict.model_dump())
 
     asyncio.create_task(_write_audit(verdict))
     asyncio.create_task(_broadcast(verdict))
@@ -286,7 +296,7 @@ async def otp_pending():
 
 @app.post("/otp/confirm")
 async def otp_confirm(tx_id: str, sms_code: str, email_code: str):
-    result = interlock.confirm(tx_id, sms_code, email_code)
+    result = await interlock.confirm(tx_id, sms_code, email_code)
     log.info("otp.confirm", tx_id=tx_id, verdict=result.get("verdict"))
     return result
 
@@ -298,9 +308,15 @@ async def run_scenario(name: str):
     if not fn:
         log.warning("scenario.unknown", name=name)
         return {"error": f"unknown scenario: {name}"}
-    log.info("scenario.run", name=name)
-    result = await asyncio.to_thread(fn)
-    return result
+    
+    log.info("scenario.run.start", name=name)
+    try:
+        result = await asyncio.to_thread(fn)
+        log.info("scenario.run.success", name=name)
+        return result
+    except Exception as e:
+        log.error("scenario.run.failed", name=name, error=str(e), exc_info=True)
+        return {"error": str(e)}
 
 
 # ---------------------------------------------------------------------------
@@ -321,6 +337,7 @@ async def ws_verdicts(ws: WebSocket):
 
 
 async def _broadcast(verdict: SynthesisVerdict) -> None:
+    global _ws_clients
     dead = set()
     payload = verdict.model_dump_json()
     for ws in list(_ws_clients):

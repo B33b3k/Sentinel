@@ -16,8 +16,9 @@ class OTPProvider(Protocol):
 class MockProvider:
     """Writes OTP to Redis + prints to console. Default for demo."""
 
-    def __init__(self, redis_url: str = "redis://localhost:6379/0") -> None:
-        self._r = redis.Redis.from_url(redis_url, decode_responses=True)
+    def __init__(self, redis_url: str | None = None) -> None:
+        url = redis_url or os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+        self._r = redis.Redis.from_url(url, decode_responses=True)
 
     def send(self, recipient: str, code: str) -> bool:
         self._r.setex(f"mock_otp:{recipient}", 300, code)
@@ -100,17 +101,17 @@ class SMTPEmailProvider:
             return False
 
 
-def get_sms_provider() -> OTPProvider:
+def get_sms_provider(redis_url: str | None = None) -> OTPProvider:
     provider = os.environ.get("SMS_PROVIDER", "mock").lower()
     if provider == "twilio":
         return TwilioProvider()
     if provider == "sparrow":
         return SparrowProvider()
-    return MockProvider()
+    return MockProvider(redis_url=redis_url)
 
 
-def get_email_provider() -> OTPProvider:
+def get_email_provider(redis_url: str | None = None) -> OTPProvider:
     provider = os.environ.get("OTP_PROVIDER", "mock").lower()
     if provider == "smtp":
         return SMTPEmailProvider()
-    return MockProvider()
+    return MockProvider(redis_url=redis_url)
