@@ -16,6 +16,5 @@ node_modules
 mlflow.db
 mlruns
 data/seeds/*.parquet
-tests
 docs
 frontend
