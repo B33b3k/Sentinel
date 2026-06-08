@@ -31,7 +31,7 @@ class VelocityAgent:
 
         # Record this transaction in the sorted set
         vel_key = f"vel:{acct}"
-        self._r.zadd(vel_key, {tx.transaction_id.hex: now_ts})
+        self._r.zadd(vel_key, {tx.transaction_id: now_ts})
         self._r.expire(vel_key, WINDOWS["24h"])
 
         reason_codes: list[str] = []

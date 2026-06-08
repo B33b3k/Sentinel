@@ -1,5 +1,5 @@
 """
-Real-data adapter — UPDATE THIS FILE when the actual data format is confirmed.
+Real-data adapter — mapped to the GIBL Track-B data spec (DATA_DESCRIPTION_Track_B.md).
 
 This is the ONLY place that knows about the real payload structure.
 Everything else in SENTINEL consumes TransactionEvent.
@@ -8,36 +8,64 @@ Usage:
     from data.adapters.real_data_adapter import to_transaction_event
     tx = to_transaction_event(raw_dict)
 
-When the real format arrives:
-    1. Fill in _map_fields() with the actual field mappings.
-    2. Update _parse_transaction_type() and _parse_account_type() if enums differ.
-    3. Run: pytest tests/adapters/ -v
+The raw dict is one row of `transactions_raw` (DATA_DESCRIPTION §3.1), optionally
+already merged with `geo_events` (§3.4), `velocity_snapshots` (§3.5) and
+`customer_profiles` (§3.2) columns — `data.loader.load_real_data()` produces that
+merged record. Any field absent in the raw payload falls back to a safe default.
 """
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from orchestrator.schemas import TransactionEvent
 
+# Nepal Standard Time — DATA_DESCRIPTION §3.1/§7: timestamps are UTC+5:45.
+# Naive timestamps (the real CSV format `YYYY-MM-DD HH:MM:SS.mmm`) are NPT-local;
+# normalising here keeps `night_flag` / hour-of-day signals correct downstream.
+NPT = timezone(timedelta(hours=5, minutes=45))
+
 # ---------------------------------------------------------------------------
-# ⚠️  PLACEHOLDER MAPPINGS — replace with real field names when known
+# Field mappings — real Track-B column names → TransactionEvent attributes.
+# Columns whose names already match (account_id, timestamp, amount_npr, currency,
+# counterparty_id, device_id, ip_address, account_age_days) need no entry.
 # ---------------------------------------------------------------------------
 _FIELD_MAP: dict[str, str] = {
-    # "real_field_name": "TransactionEvent_field_name"
-    # e.g. "txn_id": "transaction_id",
-    #      "acct_no": "account_id",
-    #      "txn_amount": "amount_npr",
+    "txn_id": "transaction_id",            # §3.1 TXN-YYYYMMDD-XXXXXXXX
+    "txn_type": "transaction_type",        # §3.1 8-value enum (see _CANONICAL_TXN_TYPES)
+    # geo_events (§3.4) — joined on txn_id by load_real_data()
+    "latitude": "geo_lat",
+    "longitude": "geo_lon",
+    "ip_city": "geo_city",
+    # customer_profiles (§3.2) — joined on account_id
+    "district": "account_home_district",
+    "occupation_category": "account_type",  # translated via _ACCT_TYPE_MAP
 }
 
+# §3.1 canonical txn_type values — adopted as SENTINEL's internal vocabulary.
+_CANONICAL_TXN_TYPES = frozenset({
+    "ESEWA_P2P", "CARD_POS", "ATM_WITHDRAWAL", "SWIFT_OUTWARD",
+    "KHALTI_QR", "RTGS", "MOBILE_TOPUP", "UTILITY_BILL",
+})
+
+# Real types pass through unchanged; this map only normalises legacy aliases.
 _TX_TYPE_MAP: dict[str, str] = {
-    # "REAL_TYPE": "P2P" | "QR_ESEWA" | "SWIFT_REMITTANCE" | "ATM_POS" | ...
-    # e.g. "TRANSFER": "P2P",
+    "P2P": "ESEWA_P2P",
+    "QR_ESEWA": "KHALTI_QR",
+    "SWIFT_REMITTANCE": "SWIFT_OUTWARD",
+    "ATM_POS": "CARD_POS",
 }
 
+# customer_profiles has no account_type; derive it from occupation_category (§3.2)
+# so the existing cohort scheme (SAVINGS/CURRENT/SALARY/REMITTANCE) keeps working.
 _ACCT_TYPE_MAP: dict[str, str] = {
-    # "REAL_ACCT_TYPE": "SAVINGS" | "CURRENT" | "SALARY" | "REMITTANCE" | ...
+    "SALARIED": "SALARY",
+    "GOVERNMENT": "SALARY",
+    "BUSINESS_OWNER": "CURRENT",
+    "SELF_EMPLOYED": "CURRENT",
+    "REMITTANCE_DEPENDENT": "REMITTANCE",
+    "STUDENT": "SAVINGS",
 }
 # ---------------------------------------------------------------------------
 
@@ -101,17 +129,19 @@ def _get(d: dict, key: str, default: Any) -> Any:
 
 
 def _parse_ts(value: Any) -> datetime:
+    # Naive datetimes are treated as NPT (DATA_DESCRIPTION §3.1/§7); tz-aware
+    # values (ISO with Z/offset, e.g. JSON datetimes) keep their own zone.
     if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo else value.replace(tzinfo=NPT)
     if isinstance(value, (int, float)):
         return datetime.fromtimestamp(value, tz=timezone.utc)
     if isinstance(value, str):
         try:
             dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            return dt if dt.tzinfo else dt.replace(tzinfo=NPT)
         except ValueError:
             pass
-    return datetime.now(timezone.utc)
+    return datetime.now(NPT)
 
 
 def _parse_transaction_type(raw: str) -> str:

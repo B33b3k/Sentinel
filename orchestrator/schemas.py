@@ -11,9 +11,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class TransactionEvent(BaseModel):
@@ -23,7 +22,9 @@ class TransactionEvent(BaseModel):
     incoming records into this shape before any agent sees them.
     """
 
-    transaction_id: UUID
+    # Real Track-B IDs are strings like `TXN-YYYYMMDD-XXXXXXXX` (DATA_DESCRIPTION
+    # §7) — NOT UUIDs. Stored as str; the validator coerces any UUID/legacy value.
+    transaction_id: str
     account_id: str
     timestamp: datetime
     amount_npr: float
@@ -50,6 +51,12 @@ class TransactionEvent(BaseModel):
 
     model_config = {"extra": "allow"}
 
+    @field_validator("transaction_id", mode="before")
+    @classmethod
+    def _coerce_txn_id(cls, v: Any) -> str:
+        # Accept real `TXN-...` strings, UUID objects (legacy/tests), and ints.
+        return str(v)
+
 
 class AgentScore(BaseModel):
     agent: str  # "velocity" | "geo" | "behavior" | "gnn"
@@ -59,7 +66,13 @@ class AgentScore(BaseModel):
 
 
 class SynthesisVerdict(BaseModel):
-    transaction_id: UUID
+    transaction_id: str
+
+    @field_validator("transaction_id", mode="before")
+    @classmethod
+    def _coerce_txn_id(cls, v: Any) -> str:
+        return str(v)
+
     composite_score: float = Field(ge=0.0, le=1.0)
     verdict: str  # "ALLOW" | "OTP_INTERLOCK" | "BLOCK"
     agent_scores: list[AgentScore]
