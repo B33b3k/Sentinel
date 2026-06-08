@@ -7,6 +7,7 @@ import pathlib
 import numpy as np
 import pandas as pd
 
+from data.adapters.real_data_adapter import NPT
 from data.loader import DATA_DIR
 
 # The 4 model-feature buckets. Kept at 4 (not the 8 real txn_types) so FEATURE_COLS
@@ -31,7 +32,13 @@ def bucket_txn_type(value: str) -> str:
 def featurize(txs: pd.DataFrame, accounts: pd.DataFrame) -> pd.DataFrame:
     """Return feature DataFrame aligned with txs index."""
     df = txs.copy()
-    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    # Naive timestamps (real Track-B CSV format) are NPT-local — localise to NPT so
+    # hour-of-day / weekend features match the live adapter (data.adapters.real_data_adapter).
+    # tz-aware timestamps (synthetic data is UTC-aware) keep their own zone unchanged.
+    ts = pd.to_datetime(df["timestamp"])
+    if ts.dt.tz is None:
+        ts = ts.dt.tz_localize(NPT)
+    df["timestamp"] = ts
 
     # Log-transform amount
     df["f_log_amount"] = np.log1p(df["amount_npr"])

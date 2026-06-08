@@ -59,11 +59,24 @@ Biratnagar, Dharan, Hetauda, Chitwan, Nepalgunj.
 > Note: the spec submission format §8.4 uses `ALLOW` / `OTP_ONLY` / `BLOCK`; a
 > submission-generation step (mapping `OTP_INTERLOCK→OTP_ONLY`) is tracked separately.
 
+## Closed
+
+- Fraud-type labels: the synthetic generators now emit the §5 taxonomy
+  (`SIM_SWAP`, `ACCOUNT_TAKEOVER`, `MONEY_MULE`, `SYNTHETIC_IDENTITY`,
+  `C2_EXFILTRATION`, `SMURFING`) and `generate.py` writes `fraud_type` into
+  `labels.parquet`. (Regeneration + retraining still needed to pick this up.)
+- Submission CSV (§8.4): `orchestrator/submission.py` produces the required
+  column set and maps `OTP_INTERLOCK→OTP_ONLY` (tests in `tests/test_submission.py`).
+- Offline `featurize()` now localises naive timestamps as NPT, matching the live
+  adapter (`tests/test_featurize_tz.py`).
+
 ## Known gaps (not yet aligned)
 
-- Fraud-type labels from the synthetic generators (6 lowercase) vs the spec's 10
-  uppercase taxonomy (§5) — requires regeneration + retraining.
-- Submission CSV (§8.4) and bonus artifacts (§8.2: `community_detection.json`,
-  `otp_submission.csv`, `shap_values.csv`) are not yet produced.
-- Offline `featurize()` localises timestamps as UTC; only the live inference path
-  is NPT-corrected so far.
+- Bonus artifacts (§8.2) are not yet produced: `community_detection.json` (COMM-042
+  ring via graph), `otp_submission.csv` (sim_swap escalations), `shap_values.csv`.
+- `submission.py` has no caller — a batch-scoring entry point that runs the eval set
+  through the pipeline (or a model over the precomputed velocity/geo columns) and
+  writes `submission_[team].csv` is still needed.
+- Fraud sub-types that depend on columns the internal `TransactionEvent` does not yet
+  carry (`channel`, `auth_method`, `is_international`, `merchant_category_code`):
+  `CARD_NOT_PRESENT`, `SOCIAL_ENGINEERING`, `INSIDER_THREAT`, `FIRST_PARTY_FRAUD`.
