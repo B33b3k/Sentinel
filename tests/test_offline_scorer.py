@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from orchestrator.offline_scorer import (
+    predict_fraud_type,
     score_behavior,
     score_geo,
     score_gnn,
@@ -71,3 +72,40 @@ def test_fraud_merchant_drives_gnn():
     s = score_gnn(row)
     assert s is not None and s.score >= 0.8
     assert "fraud_merchant" in s.reason_codes
+
+
+def test_social_engineering_signal():
+    s = score_behavior({"auth_method": "BIOMETRIC", "z_score_amount": 6.0,
+                        "new_counterparty_flag": True})
+    assert s is not None and "social_engineering_auth" in s.reason_codes
+
+
+def test_card_not_present_signal():
+    s = score_behavior({"is_international": True, "merchant_category_code": "4829"})
+    assert s is not None and "card_not_present" in s.reason_codes
+
+
+def test_insider_branch_signal():
+    s = score_behavior({"channel": "BRANCH", "z_score_amount": 5.0})
+    assert s is not None and "insider_branch_anomaly" in s.reason_codes
+
+
+def test_device_intelligence_signal():
+    # §4 pattern #4: rooted device + en_US locale (40× lift).
+    s = score_geo({"is_rooted_or_jailbroken": True, "locale": "en_US"})
+    assert s is not None
+    assert {"rooted_device", "locale_mismatch", "rooted_locale_combo"} <= set(s.reason_codes)
+
+
+def test_predict_fraud_type():
+    # Fraud merchant → SMURFING; a clean ALLOW → None.
+    fraud = score_row(_fraud_row())
+    assert predict_fraud_type(fraud) in {
+        "SMURFING", "MONEY_MULE", "ACCOUNT_TAKEOVER", "CARD_NOT_PRESENT",
+        "SOCIAL_ENGINEERING", "INSIDER_THREAT", "C2_EXFILTRATION", "SYNTHETIC_IDENTITY",
+    }
+    assert predict_fraud_type(score_row(_clean_row())) is None
+
+    cnp = score_row({"txn_id": "T", "txn_type": "CARD_POS", "is_international": True,
+                     "merchant_category_code": "7995", "z_score_amount": 4.0})
+    assert predict_fraud_type(cnp) == "CARD_NOT_PRESENT"

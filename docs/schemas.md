@@ -77,11 +77,19 @@ Biratnagar, Dharan, Hetauda, Chitwan, Nepalgunj.
   (COMM-042 ring), `otp_submission.csv` (sim-swap escalations) and `shap_values.csv`
   (additive top-5 attributions) (`tests/test_bonus.py`).
 
+- Full §5 taxonomy coverage at scoring time: the offline scorer reads the raw eval
+  columns directly, so `CARD_NOT_PRESENT` (is_international + CNP MCC),
+  `SOCIAL_ENGINEERING` (MPIN/BIOMETRIC on anomalous transfer), `INSIDER_THREAT`
+  (branch + large) and the §3.3 device signals (rooted + en_US, §4 pattern #4, 40×)
+  now contribute. `predict_fraud_type()` fills the §8.4 `fraud_type_predicted` column.
+
 ## Known gaps (not yet aligned)
 
 - The offline scorer's per-agent formulas are heuristic decompositions of the
   precomputed signals — calibration against `fraud_labels_train` (and optional GBM
   blend per §8.3) is left as a tuning step once the real files are in hand.
-- Fraud sub-types that depend on columns the internal `TransactionEvent` does not yet
-  carry (`channel`, `auth_method`, `is_international`, `merchant_category_code`):
-  `CARD_NOT_PRESENT`, `SOCIAL_ENGINEERING`, `INSIDER_THREAT`, `FIRST_PARTY_FRAUD`.
+- `FIRST_PARTY_FRAUD` is post-hoc (driven by `recovery_status` / `confirmed_by`
+  dispute outcomes, §5) and is not detectable at transaction-scoring time.
+- The synthetic generators still emit only the subset of columns the internal schema
+  carries, so the device/auth/MCC-driven sub-types above light up on the real eval
+  data but not on `data/seeds/` — synthetic parity would need generator + schema work.

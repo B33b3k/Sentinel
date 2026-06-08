@@ -20,7 +20,7 @@ import pathlib
 import pandas as pd
 
 from orchestrator.bonus import write_community_detection, write_otp_submission, write_shap_values
-from orchestrator.offline_scorer import score_records
+from orchestrator.offline_scorer import predict_fraud_type, score_records
 from orchestrator.submission import build_submission_df, row_from_verdict
 
 
@@ -61,6 +61,16 @@ def build_scoring_frame(base: pathlib.Path) -> pd.DataFrame:
         keep = [c for c in ("id", "degree_in", "degree_out", "is_fraud_seed") if c in nodes.columns]
         txn = txn.merge(nodes[keep].rename(columns={"id": "account_id"}), on="account_id", how="left")
 
+    # device_fingerprints.json (§3.3) — device intelligence, joined on device_id.
+    dev_path = base / "device_fingerprints.json"
+    if "device_id" in txn.columns and dev_path.exists():
+        dev = pd.read_json(dev_path)
+        keep = [c for c in ("device_id", "is_rooted_or_jailbroken", "locale",
+                            "is_shared_device", "num_accounts_seen_on_device") if c in dev.columns]
+        txn = txn.merge(dev[keep], on="device_id", how="left")
+    else:
+        print("  ! device_fingerprints.json not found — skipping")
+
     return txn
 
 
@@ -81,7 +91,9 @@ def main() -> None:
 
     print("Scoring through the offline multi-agent pipeline ...")
     verdicts = score_records(frame.to_dict("records"))
-    sub = build_submission_df(row_from_verdict(v) for v in verdicts)
+    sub = build_submission_df(
+        row_from_verdict(v, fraud_type_predicted=predict_fraud_type(v)) for v in verdicts
+    )
     sub_path = out / f"submission_{args.team}.csv"
     sub.to_csv(sub_path, index=False)
     print(f"  → {sub_path} ({len(sub):,} rows)")

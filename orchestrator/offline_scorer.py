@@ -78,9 +78,12 @@ def score_velocity(row: dict) -> AgentScore | None:
 
 
 def score_geo(row: dict) -> AgentScore | None:
-    """geo_events §3.4 — impossible_travel (#2 feature family), Tor/DC/VPN, distance."""
+    """geo_events §3.4 + device_fingerprints §3.3 — impossible_travel (#2 feature
+    family), Tor/DC/VPN, distance, and device intelligence (rooted / locale mismatch)."""
     cols = ("impossible_travel", "is_tor", "is_datacenter", "is_vpn",
-            "km_from_home_district", "prev_txn_km")
+            "km_from_home_district", "prev_txn_km",
+            "is_rooted_or_jailbroken", "locale", "is_shared_device",
+            "num_accounts_seen_on_device")
     if not _present(row, *cols):
         return None
     s, reasons = 0.0, []
@@ -98,12 +101,34 @@ def score_geo(row: dict) -> AgentScore | None:
         reasons.append("vpn_detected")
     s += _clamp01(_num(row, "km_from_home_district") / 1000.0) * 0.30
     s += _clamp01(_num(row, "prev_txn_km") / 2000.0) * 0.30
+    # Device intelligence (§3.3). Rooted device + en_US locale is §4 pattern #4 (40× lift);
+    # the two contributions stack so that combination saturates the geo signal.
+    rooted = _flag(row, "is_rooted_or_jailbroken")
+    locale_mismatch = isinstance(row.get("locale"), str) and row["locale"] == "en_US"
+    if rooted:
+        s += 0.30
+        reasons.append("rooted_device")
+    if locale_mismatch:
+        s += 0.25
+        reasons.append("locale_mismatch")
+    if rooted and locale_mismatch:
+        s += 0.20
+        reasons.append("rooted_locale_combo")
+    if _flag(row, "is_shared_device") or _num(row, "num_accounts_seen_on_device") > 1:
+        s += 0.20
+        reasons.append("shared_device")
     return AgentScore(agent="geo", score=_clamp01(s), reason_codes=reasons, latency_ms=0.0)
 
 
+# §5 CARD_NOT_PRESENT — international card fraud, usually these MCCs.
+_CNP_MCC = frozenset({"4829", "7995", "5967"})
+
+
 def score_behavior(row: dict) -> AgentScore | None:
-    """Behavioural anomaly — night activity, new counterparty, amount/dormancy break."""
-    cols = ("night_flag", "new_counterparty_flag", "z_score_amount", "dormancy_break")
+    """Behavioural anomaly — night activity, new counterparty, amount/dormancy break,
+    plus social-engineering / card-not-present / insider signals (§5 taxonomy)."""
+    cols = ("night_flag", "new_counterparty_flag", "z_score_amount", "dormancy_break",
+            "auth_method", "channel", "is_international", "merchant_category_code")
     if not _present(row, *cols):
         return None
     s, reasons = 0.0, []
@@ -120,6 +145,22 @@ def score_behavior(row: dict) -> AgentScore | None:
     if _flag(row, "dormancy_break") and z >= 3.0:
         s += 0.30  # §4 pattern #5: dormancy break before large outward transfer (8×)
         reasons.append("dormancy_break_large")
+    # §5 SOCIAL_ENGINEERING — customer deceived into authorising (legitimate auth on a
+    # suspicious transfer): MPIN/BIOMETRIC together with an anomalous amount/new payee.
+    auth = row.get("auth_method")
+    if _notna(auth) and auth in {"MPIN", "BIOMETRIC"} and (z >= 3.0 or _flag(row, "new_counterparty_flag")):
+        s += 0.30
+        reasons.append("social_engineering_auth")
+    # §5 CARD_NOT_PRESENT — cross-border card use on a CNP merchant category.
+    mcc = row.get("merchant_category_code")
+    if _flag(row, "is_international") and _notna(mcc) and str(mcc) in _CNP_MCC:
+        s += 0.35
+        reasons.append("card_not_present")
+    # §5 INSIDER_THREAT — unusual large transfer on the branch channel.
+    channel = row.get("channel")
+    if _notna(channel) and channel == "BRANCH" and z >= 3.0:
+        s += 0.30
+        reasons.append("insider_branch_anomaly")
     return AgentScore(agent="behavior", score=_clamp01(s), reason_codes=reasons, latency_ms=0.0)
 
 
@@ -165,3 +206,33 @@ def score_records(rows: Iterable[dict]) -> list[SynthesisVerdict]:
     """Score many merged eval rows. Pass DataFrame.to_dict('records')."""
     synth = SynthesisAgent()
     return [score_row(row, synth) for row in rows]
+
+
+# ── Fraud-type prediction (§5 taxonomy, §8.4 optional column) ────────────────
+# Reason-code → fraud_type, in priority order (most specific / highest-lift first).
+_REASON_TO_TYPE: tuple[tuple[str, str], ...] = (
+    ("fraud_merchant", "SMURFING"),
+    ("smurfing_fanout", "SMURFING"),
+    ("mule_collector_shape", "MONEY_MULE"),
+    ("layering_reciprocal", "MONEY_MULE"),
+    ("card_not_present", "CARD_NOT_PRESENT"),
+    ("social_engineering_auth", "SOCIAL_ENGINEERING"),
+    ("insider_branch_anomaly", "INSIDER_THREAT"),
+    ("datacenter_ip", "C2_EXFILTRATION"),
+    ("velocity_burst_1m", "C2_EXFILTRATION"),
+    ("dormancy_break_large", "SYNTHETIC_IDENTITY"),
+    ("impossible_travel", "ACCOUNT_TAKEOVER"),
+    ("rooted_locale_combo", "ACCOUNT_TAKEOVER"),
+    ("night_activity", "ACCOUNT_TAKEOVER"),
+)
+
+
+def predict_fraud_type(verdict: SynthesisVerdict) -> str | None:
+    """Best-guess §5 fraud_type from the fired reason codes, or None for ALLOW."""
+    if verdict.verdict == "ALLOW":
+        return None
+    fired = {rc for s in verdict.agent_scores for rc in s.reason_codes}
+    for reason, ftype in _REASON_TO_TYPE:
+        if reason in fired:
+            return ftype
+    return None
