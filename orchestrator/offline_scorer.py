@@ -23,6 +23,15 @@ from orchestrator.schemas import AgentScore, SynthesisVerdict
 # §4 hidden pattern #2 — three merchant IDs over-represented in fraud chains (227× lift).
 FRAUD_MERCHANTS = frozenset({"MERCH-8812", "MERCH-9041", "MERCH-7712"})
 
+# §4 hidden pattern #1 — structuring just below NRB reporting thresholds (2.1× lift):
+# fraud amounts cluster within ±600 of these values.
+_STRUCTURING_THRESHOLDS = (9999, 49999, 99999)
+_STRUCTURING_BAND = 600.0
+
+
+def _near_structuring_threshold(amount: float) -> bool:
+    return any(abs(amount - t) <= _STRUCTURING_BAND for t in _STRUCTURING_THRESHOLDS)
+
 
 def _clamp01(x: float) -> float:
     return 0.0 if x < 0 else 1.0 if x > 1 else x
@@ -56,9 +65,14 @@ def _flag(row: dict, col: str) -> bool:
 def score_velocity(row: dict) -> AgentScore | None:
     """velocity_snapshots §3.5 — z_score_amount (the #1 feature), bursts, fan-out."""
     cols = ("z_score_amount", "txn_count_1m", "unique_counterparties_1h", "dormancy_break")
-    if not _present(row, *cols):
+    amount = _num(row, "amount_npr")
+    structuring = _notna(row.get("amount_npr")) and _near_structuring_threshold(amount)
+    if not _present(row, *cols) and not structuring:
         return None
     s, reasons = 0.0, []
+    if structuring:
+        s += 0.20  # §4 pattern #1: amount structured just below an NRB threshold
+        reasons.append("structuring_amount")
     z = _num(row, "z_score_amount")
     if z >= 3.5:
         s += _clamp01((z - 1.0) / 4.0) * 0.6 + 0.1
@@ -128,16 +142,23 @@ def score_behavior(row: dict) -> AgentScore | None:
     """Behavioural anomaly — night activity, new counterparty, amount/dormancy break,
     plus social-engineering / card-not-present / insider signals (§5 taxonomy)."""
     cols = ("night_flag", "new_counterparty_flag", "z_score_amount", "dormancy_break",
-            "auth_method", "channel", "is_international", "merchant_category_code")
+            "auth_method", "channel", "is_international", "merchant_category_code",
+            "prev_txn_time_delta_min")
     if not _present(row, *cols):
         return None
     s, reasons = 0.0, []
     if _flag(row, "night_flag"):
         s += 0.25
         reasons.append("night_activity")  # §4 pattern #3: 73% of ATO at night
-    if _flag(row, "new_counterparty_flag"):
+    new_cp = _flag(row, "new_counterparty_flag")
+    if new_cp:
         s += 0.25
         reasons.append("new_counterparty")
+    # §4 pattern #6: transfer to a beneficiary added <24h earlier (8.3× lift) —
+    # approximated by a new counterparty within 24h of the previous transaction.
+    if new_cp and 0 < _num(row, "prev_txn_time_delta_min") < 1440:
+        s += 0.25
+        reasons.append("recent_beneficiary")
     z = _num(row, "z_score_amount")
     if z >= 3.0:
         s += 0.30
@@ -213,6 +234,7 @@ def score_records(rows: Iterable[dict]) -> list[SynthesisVerdict]:
 _REASON_TO_TYPE: tuple[tuple[str, str], ...] = (
     ("fraud_merchant", "SMURFING"),
     ("smurfing_fanout", "SMURFING"),
+    ("structuring_amount", "SMURFING"),
     ("mule_collector_shape", "MONEY_MULE"),
     ("layering_reciprocal", "MONEY_MULE"),
     ("card_not_present", "CARD_NOT_PRESENT"),

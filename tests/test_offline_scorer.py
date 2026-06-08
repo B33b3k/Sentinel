@@ -97,6 +97,23 @@ def test_device_intelligence_signal():
     assert {"rooted_device", "locale_mismatch", "rooted_locale_combo"} <= set(s.reason_codes)
 
 
+def test_structuring_amount_signal():
+    # §4 pattern #1: amount just below an NRB threshold (99,999).
+    s = score_velocity({"amount_npr": 99500})
+    assert s is not None and "structuring_amount" in s.reason_codes
+    # A clearly-unrelated amount does not trigger structuring (and no vel cols → None).
+    assert score_velocity({"amount_npr": 5000}) is None
+
+
+def test_recent_beneficiary_signal():
+    # §4 pattern #6: new counterparty within 24h of the previous transaction.
+    s = score_behavior({"new_counterparty_flag": True, "prev_txn_time_delta_min": 30})
+    assert s is not None and "recent_beneficiary" in s.reason_codes
+    # Same payee but long gap → not flagged as recent beneficiary.
+    s2 = score_behavior({"new_counterparty_flag": True, "prev_txn_time_delta_min": 5000})
+    assert s2 is not None and "recent_beneficiary" not in s2.reason_codes
+
+
 def test_predict_fraud_type():
     # Fraud merchant → SMURFING; a clean ALLOW → None.
     fraud = score_row(_fraud_row())
