@@ -9,32 +9,37 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 
 NEPAL_DISTRICTS = [
-    "Kathmandu", "Lalitpur", "Bhaktapur", "Pokhara", "Dharan",
-    "Biratnagar", "Birgunj", "Butwal", "Nepalgunj", "Dhangadhi",
+    "Kathmandu", "Lalitpur", "Bhaktapur", "Pokhara", "Butwal",
+    "Biratnagar", "Dharan", "Hetauda", "Chitwan", "Nepalgunj",
 ]
 
-# (lat, lon) centroids per district
+# (lat, lon) centroids per district — DATA_DESCRIPTION §3.2 (10 districts)
 DISTRICT_COORDS: dict[str, tuple[float, float]] = {
     "Kathmandu": (27.7172, 85.3240),
     "Lalitpur":  (27.6644, 85.3188),
     "Bhaktapur": (27.6710, 85.4298),
     "Pokhara":   (28.2096, 83.9856),
-    "Dharan":    (26.8141, 87.2792),
-    "Biratnagar":(26.4525, 87.2718),
-    "Birgunj":   (27.0104, 84.8777),
     "Butwal":    (27.7006, 83.4483),
+    "Biratnagar":(26.4525, 87.2718),
+    "Dharan":    (26.8141, 87.2792),
+    "Hetauda":   (27.4287, 85.0322),
+    "Chitwan":   (27.6766, 84.4333),
     "Nepalgunj": (28.0500, 81.6167),
-    "Dhangadhi": (28.6833, 80.6000),
 }
 
-TX_TYPES = ["P2P", "QR_ESEWA", "SWIFT_REMITTANCE", "ATM_POS"]
+# Real Track-B txn_type enum (DATA_DESCRIPTION §3.1).
+TX_TYPES = [
+    "ESEWA_P2P", "CARD_POS", "ATM_WITHDRAWAL", "KHALTI_QR",
+    "MOBILE_TOPUP", "UTILITY_BILL", "RTGS", "SWIFT_OUTWARD",
+]
 
-# Per account-type: (tx_type_weights, amount_mean, amount_std, daily_tx_rate)
+# Per account-type: (tx_type_weights aligned to TX_TYPES, amount_mean, amount_std,
+# daily_tx_rate). Weights echo the overall §3.1 distribution, skewed by account type.
 _PROFILE: dict[str, dict] = {
-    "SAVINGS":    {"type_w": [0.35, 0.40, 0.05, 0.20], "mean": 3000,  "std": 2000,  "rate": 1.5},
-    "CURRENT":    {"type_w": [0.25, 0.30, 0.10, 0.35], "mean": 15000, "std": 10000, "rate": 3.0},
-    "SALARY":     {"type_w": [0.40, 0.35, 0.05, 0.20], "mean": 5000,  "std": 3000,  "rate": 1.2},
-    "REMITTANCE": {"type_w": [0.20, 0.10, 0.60, 0.10], "mean": 25000, "std": 15000, "rate": 0.8},
+    "SAVINGS":    {"type_w": [0.28, 0.15, 0.15, 0.18, 0.10, 0.10, 0.01, 0.03], "mean": 3000,  "std": 2000,  "rate": 1.5},
+    "CURRENT":    {"type_w": [0.22, 0.22, 0.12, 0.10, 0.06, 0.08, 0.10, 0.10], "mean": 15000, "std": 10000, "rate": 3.0},
+    "SALARY":     {"type_w": [0.30, 0.18, 0.15, 0.15, 0.08, 0.10, 0.02, 0.02], "mean": 5000,  "std": 3000,  "rate": 1.2},
+    "REMITTANCE": {"type_w": [0.18, 0.08, 0.08, 0.06, 0.05, 0.05, 0.10, 0.40], "mean": 25000, "std": 15000, "rate": 0.8},
 }
 
 _NOW = datetime(2026, 5, 14, tzinfo=timezone.utc)

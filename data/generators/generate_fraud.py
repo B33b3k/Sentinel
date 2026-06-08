@@ -1,4 +1,11 @@
-"""Generate the 6 fraud taxonomy patterns from concept paper Section 2.2."""
+"""Generate fraud patterns labelled with the DATA_DESCRIPTION §5 taxonomy.
+
+Each pattern function emits rows whose `fraud_type` is one of the 10 official
+Track-B fraud types. Note: CARD_NOT_PRESENT, SOCIAL_ENGINEERING, INSIDER_THREAT
+and FIRST_PARTY_FRAUD hinge on real columns the internal TransactionEvent does not
+yet carry (channel, auth_method, is_international, merchant_category_code), so they
+are not synthesised here — see docs/schemas.md "Known gaps".
+"""
 from __future__ import annotations
 
 import random
@@ -9,17 +16,20 @@ import pandas as pd
 
 _NOW = datetime(2026, 5, 14, tzinfo=timezone.utc)
 
+# NRB reporting thresholds — structuring clusters just below these (§4 hidden pattern #1).
+_STRUCTURING_THRESHOLDS = (9999, 49999, 99999)
+
 DISTRICT_COORDS: dict[str, tuple[float, float]] = {
     "Kathmandu": (27.7172, 85.3240),
     "Lalitpur":  (27.6644, 85.3188),
     "Bhaktapur": (27.6710, 85.4298),
     "Pokhara":   (28.2096, 83.9856),
-    "Dharan":    (26.8141, 87.2792),
-    "Biratnagar":(26.4525, 87.2718),
-    "Birgunj":   (27.0104, 84.8777),
     "Butwal":    (27.7006, 83.4483),
+    "Biratnagar":(26.4525, 87.2718),
+    "Dharan":    (26.8141, 87.2792),
+    "Hetauda":   (27.4287, 85.0322),
+    "Chitwan":   (27.6766, 84.4333),
     "Nepalgunj": (28.0500, 81.6167),
-    "Dhangadhi": (28.6833, 80.6000),
 }
 NEPAL_DISTRICTS = list(DISTRICT_COORDS.keys())
 _VPN_IPS = ["185.220.101.1", "104.244.72.1", "198.96.155.1"]
@@ -62,10 +72,10 @@ def _sim_swap_esewa(accounts: pd.DataFrame, rng: random.Random, n: int) -> list[
         ts = _NOW.replace(hour=2, minute=rng.randint(0, 59)) - timedelta(days=rng.randint(0, 30))
         rows.append(_tx(
             acc["account_id"], ts,
-            rng.uniform(50000, 100000), "QR_ESEWA",
+            rng.uniform(50000, 100000), "ESEWA_P2P",
             f"device_unknown_{uuid.uuid4().hex[:8]}",
             rng.choice(_VPN_IPS), distant, acc["home_district"],
-            int(acc["account_age_days"]), acc["account_type"], "sim_swap_esewa",
+            int(acc["account_age_days"]), acc["account_type"], "SIM_SWAP",
         ))
     return rows
 
@@ -83,9 +93,9 @@ def _velocity_burst(accounts: pd.DataFrame, rng: random.Random, n: int) -> list[
             ts = base_ts + timedelta(seconds=i * rng.randint(3, 8))
             rows.append(_tx(
                 acc["account_id"], ts,
-                rng.uniform(100, 500), "P2P",
+                rng.uniform(100, 500), "ESEWA_P2P",
                 device, ip, district, district,
-                int(acc["account_age_days"]), acc["account_type"], "velocity_burst",
+                int(acc["account_age_days"]), acc["account_type"], "C2_EXFILTRATION",
                 counterparty_id=f"ACC_{rng.randint(1,4999):05d}",
             ))
     return rows
@@ -106,19 +116,19 @@ def _remittance_mule(accounts: pd.DataFrame, rng: random.Random, n: int) -> list
             src_id = f"ACC_{rng.randint(1,4999):05d}"
             ts = base_ts + timedelta(minutes=j * rng.randint(5, 15))
             rows.append(_tx(
-                src_id, ts, rng.uniform(15000, 30000), "SWIFT_REMITTANCE",
+                src_id, ts, rng.uniform(15000, 30000), "SWIFT_OUTWARD",
                 f"device_{src_id}_0", f"27.{rng.randint(0,255)}.1.1",
                 mule["home_district"], mule["home_district"],
-                int(mule["account_age_days"]), "REMITTANCE", "remittance_mule",
+                int(mule["account_age_days"]), "REMITTANCE", "MONEY_MULE",
                 counterparty_id=mule["account_id"],
             ))
         # Mule forwards out
         rows.append(_tx(
             mule["account_id"], base_ts + timedelta(minutes=90),
-            rng.uniform(50000, 90000), "SWIFT_REMITTANCE",
+            rng.uniform(50000, 90000), "SWIFT_OUTWARD",
             f"device_{mule['account_id']}_0", f"27.{rng.randint(0,255)}.1.1",
             mule["home_district"], mule["home_district"],
-            int(mule["account_age_days"]), "REMITTANCE", "remittance_mule",
+            int(mule["account_age_days"]), "REMITTANCE", "MONEY_MULE",
             counterparty_id=dest_id,
         ))
     return rows
@@ -132,18 +142,18 @@ def _new_device_takeover(accounts: pd.DataFrame, rng: random.Random, n: int) -> 
         ts = _NOW - timedelta(days=rng.randint(0, 30), hours=rng.randint(0, 23))
         rows.append(_tx(
             acc["account_id"], ts,
-            rng.uniform(40000, 120000), rng.choice(["P2P", "QR_ESEWA"]),
+            rng.uniform(40000, 120000), rng.choice(["ESEWA_P2P", "KHALTI_QR"]),
             f"device_takeover_{uuid.uuid4().hex[:8]}",
             f"103.{rng.randint(0,255)}.{rng.randint(0,255)}.1",
             rng.choice(NEPAL_DISTRICTS), acc["home_district"],
-            int(acc["account_age_days"]), acc["account_type"], "new_device_takeover",
+            int(acc["account_age_days"]), acc["account_type"], "ACCOUNT_TAKEOVER",
         ))
     return rows
 
 
 def _geo_impossible(accounts: pd.DataFrame, rng: random.Random, n: int) -> list[dict]:
-    """Two tx 800+ km apart within 1h (Kathmandu ↔ Dhangadhi ~800km)."""
-    far_pairs = [("Kathmandu", "Dhangadhi"), ("Pokhara", "Biratnagar"), ("Kathmandu", "Nepalgunj")]
+    """Two tx far apart within 1h (e.g. Kathmandu ↔ Nepalgunj ~500km)."""
+    far_pairs = [("Kathmandu", "Nepalgunj"), ("Pokhara", "Biratnagar"), ("Kathmandu", "Biratnagar")]
     rows = []
     pool = accounts[accounts["account_age_days"] > 30].sample(n=min(n, len(accounts)), random_state=rng.randint(0, 9999))
     for _, acc in pool.iterrows():
@@ -152,16 +162,16 @@ def _geo_impossible(accounts: pd.DataFrame, rng: random.Random, n: int) -> list[
         device = f"device_{acc['account_id']}_0"
         ip = f"27.{rng.randint(0,255)}.1.1"
         rows.append(_tx(
-            acc["account_id"], base_ts, rng.uniform(1000, 5000), "ATM_POS",
+            acc["account_id"], base_ts, rng.uniform(1000, 5000), "ATM_WITHDRAWAL",
             device, ip, d1, acc["home_district"],
-            int(acc["account_age_days"]), acc["account_type"], "geo_impossible",
+            int(acc["account_age_days"]), acc["account_type"], "ACCOUNT_TAKEOVER",
         ))
         rows.append(_tx(
             acc["account_id"], base_ts + timedelta(minutes=rng.randint(20, 55)),
-            rng.uniform(30000, 80000), "QR_ESEWA",
+            rng.uniform(30000, 80000), "KHALTI_QR",
             f"device_unknown_{uuid.uuid4().hex[:8]}", rng.choice(_VPN_IPS),
             d2, acc["home_district"],
-            int(acc["account_age_days"]), acc["account_type"], "geo_impossible",
+            int(acc["account_age_days"]), acc["account_type"], "ACCOUNT_TAKEOVER",
         ))
     return rows
 
@@ -177,22 +187,46 @@ def _synthetic_identity(accounts: pd.DataFrame, rng: random.Random, n: int) -> l
             district = rng.choice(NEPAL_DISTRICTS)
             ts = _NOW - timedelta(days=rng.randint(0, 2), hours=rng.randint(0, 23))
             rows.append(_tx(
-                acc_id, ts, rng.uniform(50000, 150000), "SWIFT_REMITTANCE",
+                acc_id, ts, rng.uniform(50000, 150000), "SWIFT_OUTWARD",
                 f"device_new_{uuid.uuid4().hex[:8]}",
                 f"103.{rng.randint(0,255)}.1.1",
-                district, district, rng.randint(0, 3), "SAVINGS", "synthetic_identity",
+                district, district, rng.randint(0, 3), "SAVINGS", "SYNTHETIC_IDENTITY",
             ))
         return rows
     pool = pool.sample(n=min(n, len(pool)), random_state=rng.randint(0, 9999))
     for _, acc in pool.iterrows():
         ts = _NOW - timedelta(days=rng.randint(0, int(acc["account_age_days"])), hours=rng.randint(0, 23))
         rows.append(_tx(
-            acc["account_id"], ts, rng.uniform(50000, 150000), "SWIFT_REMITTANCE",
+            acc["account_id"], ts, rng.uniform(50000, 150000), "SWIFT_OUTWARD",
             f"device_new_{uuid.uuid4().hex[:8]}",
             f"103.{rng.randint(0,255)}.1.1",
             acc["home_district"], acc["home_district"],
-            int(acc["account_age_days"]), acc["account_type"], "synthetic_identity",
+            int(acc["account_age_days"]), acc["account_type"], "SYNTHETIC_IDENTITY",
         ))
+    return rows
+
+
+def _smurfing(accounts: pd.DataFrame, rng: random.Random, n: int) -> list[dict]:
+    """Structuring: 3-5 transfers just below an NRB threshold to distinct, new
+    counterparties within an hour (§5 SMURFING + §4 hidden pattern #1)."""
+    rows = []
+    pool = accounts[accounts["account_age_days"] > 30].sample(
+        n=min(n, len(accounts)), random_state=rng.randint(0, 9999)
+    )
+    for _, acc in pool.iterrows():
+        threshold = rng.choice(_STRUCTURING_THRESHOLDS)
+        base_ts = _NOW - timedelta(days=rng.randint(0, 30), hours=rng.randint(0, 23))
+        device = f"device_{acc['account_id']}_0"
+        ip = f"27.{rng.randint(0,255)}.{rng.randint(0,255)}.1"
+        for j in range(rng.randint(3, 5)):
+            ts = base_ts + timedelta(minutes=j * rng.randint(2, 12))
+            amount = threshold - rng.uniform(1, 500)  # just below the threshold
+            rows.append(_tx(
+                acc["account_id"], ts, amount, "ESEWA_P2P",
+                device, ip, acc["home_district"], acc["home_district"],
+                int(acc["account_age_days"]), acc["account_type"], "SMURFING",
+                counterparty_id=f"ACC_{rng.randint(1,4999):05d}",
+            ))
     return rows
 
 
@@ -201,18 +235,18 @@ def generate_fraud(accounts: pd.DataFrame, target_fraud_rate: float = 0.02,
     rng = random.Random(seed)
     target_n = int(total_legit * target_fraud_rate / (1 - target_fraud_rate))
 
-    # Approximate rows per call: sim_swap=1, velocity_burst=~12, mule=~5, device=1, geo=2, synth=1
-    # Solve: n1 + 12*n2 + 5*n3 + n4 + 2*n5 + n6 = target_n, all equal base
-    # Simple: set base = target_n // 22 (sum of multipliers), then scale
-    base = max(1, target_n // 22)
+    # Approximate rows per call: sim_swap=1, velocity_burst=~12, mule=~5, device=1,
+    # geo=2, synth=1, smurf=~4. base normalises the mix toward target_n.
+    base = max(1, target_n // 26)
 
     rows: list[dict] = []
-    rows += _sim_swap_esewa(accounts, rng, base * 4)
-    rows += _velocity_burst(accounts, rng, base)          # ~12 rows each
-    rows += _remittance_mule(accounts, rng, base)         # ~5 rows each
-    rows += _new_device_takeover(accounts, rng, base * 4)
-    rows += _geo_impossible(accounts, rng, base * 2)      # 2 rows each
-    rows += _synthetic_identity(accounts, rng, base * 4)
+    rows += _sim_swap_esewa(accounts, rng, base * 4)        # SIM_SWAP
+    rows += _velocity_burst(accounts, rng, base)            # C2_EXFILTRATION (~12 each)
+    rows += _remittance_mule(accounts, rng, base)           # MONEY_MULE (~5 each)
+    rows += _new_device_takeover(accounts, rng, base * 4)   # ACCOUNT_TAKEOVER
+    rows += _geo_impossible(accounts, rng, base * 2)        # ACCOUNT_TAKEOVER (2 each)
+    rows += _synthetic_identity(accounts, rng, base * 4)    # SYNTHETIC_IDENTITY
+    rows += _smurfing(accounts, rng, base * 2)              # SMURFING (~4 each)
 
     df = pd.DataFrame(rows)
     if len(df) > target_n:

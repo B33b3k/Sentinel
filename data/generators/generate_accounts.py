@@ -7,9 +7,10 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
+# DATA_DESCRIPTION §3.2 — the 10 home districts.
 NEPAL_DISTRICTS = [
-    "Kathmandu", "Lalitpur", "Bhaktapur", "Pokhara", "Dharan",
-    "Biratnagar", "Birgunj", "Butwal", "Nepalgunj", "Dhangadhi",
+    "Kathmandu", "Lalitpur", "Bhaktapur", "Pokhara", "Butwal",
+    "Biratnagar", "Dharan", "Hetauda", "Chitwan", "Nepalgunj",
 ]
 URBAN_DISTRICTS = {"Kathmandu", "Lalitpur", "Bhaktapur", "Pokhara"}
 ACCOUNT_TYPES = ["SAVINGS", "CURRENT", "SALARY", "REMITTANCE"]
