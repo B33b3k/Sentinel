@@ -69,14 +69,19 @@ Biratnagar, Dharan, Hetauda, Chitwan, Nepalgunj.
   column set and maps `OTP_INTERLOCK→OTP_ONLY` (tests in `tests/test_submission.py`).
 - Offline `featurize()` now localises naive timestamps as NPT, matching the live
   adapter (`tests/test_featurize_tz.py`).
+- Batch scoring: `orchestrator/offline_scorer.py` derives agent scores from the
+  precomputed velocity/geo/graph columns and fuses them with the live
+  `SynthesisAgent`; `scripts/generate_submission.py` is the eval-day driver
+  (`tests/test_offline_scorer.py`).
+- Bonus artifacts (§8.2): `orchestrator/bonus.py` produces `community_detection.json`
+  (COMM-042 ring), `otp_submission.csv` (sim-swap escalations) and `shap_values.csv`
+  (additive top-5 attributions) (`tests/test_bonus.py`).
 
 ## Known gaps (not yet aligned)
 
-- Bonus artifacts (§8.2) are not yet produced: `community_detection.json` (COMM-042
-  ring via graph), `otp_submission.csv` (sim_swap escalations), `shap_values.csv`.
-- `submission.py` has no caller — a batch-scoring entry point that runs the eval set
-  through the pipeline (or a model over the precomputed velocity/geo columns) and
-  writes `submission_[team].csv` is still needed.
+- The offline scorer's per-agent formulas are heuristic decompositions of the
+  precomputed signals — calibration against `fraud_labels_train` (and optional GBM
+  blend per §8.3) is left as a tuning step once the real files are in hand.
 - Fraud sub-types that depend on columns the internal `TransactionEvent` does not yet
   carry (`channel`, `auth_method`, `is_international`, `merchant_category_code`):
   `CARD_NOT_PRESENT`, `SOCIAL_ENGINEERING`, `INSIDER_THREAT`, `FIRST_PARTY_FRAUD`.
