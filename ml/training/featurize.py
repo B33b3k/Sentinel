@@ -9,7 +9,23 @@ import pandas as pd
 
 from data.loader import DATA_DIR
 
+# The 4 model-feature buckets. Kept at 4 (not the 8 real txn_types) so FEATURE_COLS
+# / LSTM input_dim stay stable and existing trained models load without retraining.
 TX_TYPES = ["P2P", "QR_ESEWA", "SWIFT_REMITTANCE", "ATM_POS"]
+
+# Real Track-B txn_type enum (DATA_DESCRIPTION §3.1) → the 4 buckets above.
+# Values already equal to a bucket name pass through unchanged.
+TX_TYPE_BUCKET: dict[str, str] = {
+    "ESEWA_P2P": "P2P", "MOBILE_TOPUP": "P2P", "UTILITY_BILL": "P2P",
+    "KHALTI_QR": "QR_ESEWA",
+    "SWIFT_OUTWARD": "SWIFT_REMITTANCE", "RTGS": "SWIFT_REMITTANCE",
+    "CARD_POS": "ATM_POS", "ATM_WITHDRAWAL": "ATM_POS",
+}
+
+
+def bucket_txn_type(value: str) -> str:
+    """Collapse a real txn_type into one of the 4 model-feature buckets."""
+    return TX_TYPE_BUCKET.get(value, value)
 
 
 def featurize(txs: pd.DataFrame, accounts: pd.DataFrame) -> pd.DataFrame:
@@ -56,9 +72,10 @@ def featurize(txs: pd.DataFrame, accounts: pd.DataFrame) -> pd.DataFrame:
         .transform(lambda s: s.duplicated(keep="first").astype(float))
     )
 
-    # Transaction type one-hot
+    # Transaction type one-hot (real 8-value enum bucketed into the 4 model buckets)
+    bucketed = df["transaction_type"].map(TX_TYPE_BUCKET).fillna(df["transaction_type"])
     for t in TX_TYPES:
-        df[f"f_type_{t}"] = (df["transaction_type"] == t).astype(float)
+        df[f"f_type_{t}"] = (bucketed == t).astype(float)
 
     feature_cols = [c for c in df.columns if c.startswith("f_")]
     return df[["transaction_id", "account_id", "timestamp"] + feature_cols].fillna(0)

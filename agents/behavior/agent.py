@@ -15,7 +15,7 @@ import torch
 
 from ml.cohorts.assign import AccountMeta, assign_cohort
 from ml.cohorts.onboarding import check_nrb_rules, compute_blend_weights
-from ml.training.featurize import FEATURE_COLS
+from ml.training.featurize import FEATURE_COLS, TX_TYPES, bucket_txn_type
 from ml.training.train_lstm import BehaviorLSTM
 from orchestrator.schemas import AgentScore, TransactionEvent
 
@@ -145,7 +145,8 @@ class BehaviorAgent:
         import math as _math
         hour = tx.timestamp.hour
         dow = tx.timestamp.weekday()
-        tx_type_vec = [float(tx.transaction_type == t) for t in ["P2P", "QR_ESEWA", "SWIFT_REMITTANCE", "ATM_POS"]]
+        bucket = bucket_txn_type(tx.transaction_type)
+        tx_type_vec = [float(bucket == t) for t in TX_TYPES]
         vec = [
             math.log1p(tx.amount_npr),
             math.sin(2 * _math.pi * hour / 24),

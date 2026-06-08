@@ -5,8 +5,21 @@ import time
 
 from orchestrator.schemas import AgentScore, SynthesisVerdict, TransactionEvent
 
-# Weight matrix from concept paper Section 3.2.4
+# Context-aware weight matrix. Keyed on the real Track-B txn_type enum
+# (DATA_DESCRIPTION §3.1); §6 motivates the per-type emphasis (e.g. eSewa P2P and
+# offshore SWIFT/RTGS lean on the graph signal, QR/POS lean on geo/velocity).
+# The legacy 4 keys are retained for backward compatibility (demo scenarios/tests).
 WEIGHTS_BY_TYPE: dict[str, dict[str, float]] = {
+    # --- real Track-B types ---
+    "ESEWA_P2P":        {"velocity": 0.20, "geo": 0.15, "behavior": 0.25, "gnn": 0.40},
+    "KHALTI_QR":        {"velocity": 0.35, "geo": 0.35, "behavior": 0.25, "gnn": 0.05},
+    "CARD_POS":         {"velocity": 0.25, "geo": 0.40, "behavior": 0.30, "gnn": 0.05},
+    "ATM_WITHDRAWAL":   {"velocity": 0.30, "geo": 0.45, "behavior": 0.20, "gnn": 0.05},
+    "SWIFT_OUTWARD":    {"velocity": 0.15, "geo": 0.20, "behavior": 0.20, "gnn": 0.45},
+    "RTGS":             {"velocity": 0.15, "geo": 0.15, "behavior": 0.25, "gnn": 0.45},
+    "MOBILE_TOPUP":     {"velocity": 0.40, "geo": 0.25, "behavior": 0.30, "gnn": 0.05},
+    "UTILITY_BILL":     {"velocity": 0.30, "geo": 0.25, "behavior": 0.40, "gnn": 0.05},
+    # --- legacy types (concept-paper Section 3.2.4) ---
     "P2P":              {"velocity": 0.20, "geo": 0.30, "behavior": 0.30, "gnn": 0.20},
     "QR_ESEWA":         {"velocity": 0.35, "geo": 0.40, "behavior": 0.25, "gnn": 0.00},
     "SWIFT_REMITTANCE": {"velocity": 0.15, "geo": 0.25, "behavior": 0.20, "gnn": 0.40},
