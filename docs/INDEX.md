@@ -16,6 +16,7 @@ docs/
 ├── 06-data-flow.md              # Data movement through system
 ├── 07-performance.md            # Benchmarks & optimizations
 ├── 08-demo.md                   # Demo script & presentation guide
+├── 09-track-b-submission.md     # Track-B data alignment & eval-day submission
 │
 ├── decisions.md                 # Architecture decision records
 └── schemas.md                   # Data schema documentation

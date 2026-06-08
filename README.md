@@ -13,6 +13,7 @@
 - [Tech Stack](#tech-stack)
 - [Key Achievements](#key-achievements)
 - [Quick Start](#quick-start)
+- [Track-B Submission (Eval Day)](#track-b-submission-eval-day)
 - [System Metrics](#system-metrics)
 - [Sprint Plan (Completed)](#sprint-plan-completed)
 - [Team Roles](#team-roles)
@@ -144,6 +145,37 @@ python3 data/generators/replay.py
 - **API Docs:** http://localhost:8000/docs
 - **MLflow UI:** http://localhost:5050
 - **Neo4j:** http://localhost:7474
+
+---
+
+## Track-B Submission (Eval Day)
+
+SENTINEL is fully aligned to the **GIBL Track-B data dictionary**
+(`DATA_DESCRIPTION_Track_B.md`). The real `structured/*.csv` files arrive on hackathon
+day; everything below is built against the dictionary and verified on fixtures, ready to
+run immediately. Full guide: [`docs/09-track-b-submission.md`](docs/09-track-b-submission.md).
+
+```bash
+# Place the real files under ./structured/, then:
+
+# 1. Measure standing vs the §8.1 targets and §8.3 rule-engine baseline
+python3 scripts/evaluate.py --data structured
+
+# 2. Produce the §8.4 submission + all §8.2 bonus artifacts → ./dist/
+python3 scripts/generate_submission.py --data structured --team sentinel --out dist
+```
+
+| Output | Spec | Producer |
+|---|---|---|
+| `submission_sentinel.csv` | §8.4 | `orchestrator/submission.py` |
+| `community_detection.json` (COMM-042 ring) | §8.2 +5% | `orchestrator/bonus.py` |
+| `otp_submission.csv` (sim-swap escalations) | §8.2 +5% | `orchestrator/bonus.py` |
+| `shap_values.csv` (top-5 attributions) | §8.2 +3% | `orchestrator/bonus.py` |
+
+Scoring runs the **offline multi-agent pipeline** (`orchestrator/offline_scorer.py`) over
+the dataset's precomputed velocity/geo/graph/device signals — no live infra needed — and
+covers all 7 §4 hidden patterns. The dynamic per-`txn_type` synthesis weights satisfy the
+§8.2 +5% weight-adaptation bonus.
 
 ---
 
