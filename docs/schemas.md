@@ -82,6 +82,10 @@ Biratnagar, Dharan, Hetauda, Chitwan, Nepalgunj.
   `SOCIAL_ENGINEERING` (MPIN/BIOMETRIC on anomalous transfer), `INSIDER_THREAT`
   (branch + large) and the §3.3 device signals (rooted + en_US, §4 pattern #4, 40×)
   now contribute. `predict_fraud_type()` fills the §8.4 `fraud_type_predicted` column.
+- Evaluation harness: `orchestrator/metrics.py` + `scripts/evaluate.py` score the
+  labelled `fraud_labels_train` split and report §8.1 metrics (AUROC, precision@5%FPR,
+  recall, F1, FPR) vs the targets and the §8.3 rule-engine baseline
+  (`tests/test_metrics.py`).
 
 ## Known gaps (not yet aligned)
 
