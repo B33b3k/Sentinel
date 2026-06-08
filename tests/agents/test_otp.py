@@ -1,4 +1,5 @@
 """Unit tests for OTP interlock state machine."""
+import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
@@ -47,18 +48,18 @@ def _setup():
 def test_both_correct_release():
     il, customer, store = _setup()
     tx = _tx()
-    il.trigger(tx, customer)
+    asyncio.run(il.trigger(tx, customer))
     data = json.loads(store[f"otp_pending:{tx.transaction_id}"])
-    result = il.confirm(str(tx.transaction_id), data["sms_otp"], data["email_otp"])
+    result = asyncio.run(il.confirm(str(tx.transaction_id), data["sms_otp"], data["email_otp"]))
     assert result["verdict"] == "RELEASE"
 
 
 def test_wrong_sms_correct_email_sim_swap():
     il, customer, store = _setup()
     tx = _tx()
-    il.trigger(tx, customer)
+    asyncio.run(il.trigger(tx, customer))
     data = json.loads(store[f"otp_pending:{tx.transaction_id}"])
-    result = il.confirm(str(tx.transaction_id), "000000", data["email_otp"])
+    result = asyncio.run(il.confirm(str(tx.transaction_id), "000000", data["email_otp"]))
     assert result["verdict"] == "BLOCK"
     assert result["reason"] == "sim_swap_alert"
 
@@ -66,17 +67,17 @@ def test_wrong_sms_correct_email_sim_swap():
 def test_correct_sms_wrong_email_human_review():
     il, customer, store = _setup()
     tx = _tx()
-    il.trigger(tx, customer)
+    asyncio.run(il.trigger(tx, customer))
     data = json.loads(store[f"otp_pending:{tx.transaction_id}"])
-    result = il.confirm(str(tx.transaction_id), data["sms_otp"], "000000")
+    result = asyncio.run(il.confirm(str(tx.transaction_id), data["sms_otp"], "000000"))
     assert result["verdict"] == "HUMAN_REVIEW"
 
 
 def test_both_wrong_block():
     il, customer, store = _setup()
     tx = _tx()
-    il.trigger(tx, customer)
-    result = il.confirm(str(tx.transaction_id), "000000", "000000")
+    asyncio.run(il.trigger(tx, customer))
+    result = asyncio.run(il.confirm(str(tx.transaction_id), "000000", "000000"))
     assert result["verdict"] == "BLOCK"
     assert result["reason"] == "both_failed"
 
@@ -85,5 +86,5 @@ def test_expired_otp_rejected():
     il, customer, store = _setup()
     tx = _tx()
     # Don't trigger — no key in store
-    result = il.confirm(str(tx.transaction_id), "123456", "123456")
+    result = asyncio.run(il.confirm(str(tx.transaction_id), "123456", "123456"))
     assert result["verdict"] == "EXPIRED"

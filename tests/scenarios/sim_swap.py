@@ -5,6 +5,7 @@ The real owner still has email but their SMS OTP was intercepted via SIM swap.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from unittest.mock import MagicMock
@@ -33,7 +34,7 @@ def run_sim_swap() -> dict:
         phone="+977-9841234567",
         email="sita@example.com",
     )
-    il.trigger(SITA_FRAUD_TX, customer)
+    asyncio.run(il.trigger(SITA_FRAUD_TX, customer))
 
     # Read the stored OTPs
     raw = fake_r.get(f"otp_pending:{SITA_FRAUD_TX.transaction_id}")
@@ -43,7 +44,7 @@ def run_sim_swap() -> dict:
     wrong_sms = "000000"
     correct_email = data["email_otp"]
 
-    result = il.confirm(str(SITA_FRAUD_TX.transaction_id), wrong_sms, correct_email)
+    result = asyncio.run(il.confirm(str(SITA_FRAUD_TX.transaction_id), wrong_sms, correct_email))
     return result
 
 
