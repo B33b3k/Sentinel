@@ -1,6 +1,6 @@
 # 02 - Architecture Deep Dive
 
-## 🏗️ System Architecture
+## System Architecture
 
 ### High-Level Design
 
@@ -28,7 +28,7 @@
 
 ---
 
-## 🔄 Data Flow
+## Data Flow
 
 ### 1. Transaction Ingestion
 
@@ -64,8 +64,8 @@ vel, geo, beh, gnn = await asyncio.gather(
 
 **Why parallel?**
 - Total time = max(agent times), not sum
-- 85ms total vs 150ms if sequential
 - Better resource utilization
+- See [07-performance.md](./07-performance.md) for measured latency
 
 ### 3. Synthesis & Verdict
 
@@ -107,7 +107,7 @@ Verdict
 
 ---
 
-## 🧩 Component Details
+## Component Details
 
 ### Orchestrator (FastAPI)
 
@@ -258,8 +258,8 @@ RETURN mule.id, dest.id, source_count
 **Why Cypher instead of GraphSAGE?**
 - Cypher works immediately (no training)
 - Explainable (see the query)
-- Fast enough (42ms with caching)
-- GraphSAGE is stretch goal (if time permits)
+- Fast enough with caching (see [07-performance.md](./07-performance.md) for measured latency)
+- GraphSAGE is a stretch goal (if time permits)
 
 ### Synthesis Agent
 
@@ -284,8 +284,6 @@ else:
 - QR payments: Geo matters most (location-based fraud)
 - SWIFT: Graph matters most (layering schemes)
 - P2P: Balanced (all signals relevant)
-
-**This is the innovation!**
 
 ### OTP Interlock
 
@@ -313,7 +311,7 @@ Customer submits codes
 
 ---
 
-## 🔐 Security Considerations
+## Security Considerations
 
 ### 1. Data Adapter Pattern
 **Problem:** Real data format unknown until hackathon day
@@ -349,7 +347,7 @@ CREATE TABLE audit_log (
 
 ---
 
-## 📈 Scalability
+## Scalability
 
 ### Horizontal Scaling
 
@@ -366,7 +364,7 @@ CREATE TABLE audit_log (
 
 ### Vertical Scaling
 
-**Bottleneck:** Behavior agent (68ms)
+**Bottleneck:** Behavior agent (the slowest agent; see [07-performance.md](./07-performance.md) for measured latency)
 **Solutions:**
 1. ONNX export (2× faster inference)
 2. Batch inference (process 16 tx at once)
@@ -374,9 +372,8 @@ CREATE TABLE audit_log (
 4. Smaller model (32 hidden units)
 
 ### Current Capacity
-- Single orchestrator: 3K TPS
-- With 3 consumers: 9K TPS
-- With optimizations: 15K+ TPS
+
+Throughput scales horizontally by adding Kafka consumers (partitioned by account_id), since orchestrator instances are stateless. See [07-performance.md](./07-performance.md) for measured throughput.
 
 ---
 

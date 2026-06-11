@@ -77,7 +77,7 @@ amtavg:{account_id}           # String: historical avg amount
 ```
 
 ### Performance
-- **Latency:** ~15ms
+- **Latency:** ~2 ms median, 8 ms P99 (measured — see [07-performance.md](./07-performance.md))
 - **Why fast:** Redis in-memory, sorted sets optimized for time-range queries
 - **Bottleneck:** Network round-trip to Redis
 
@@ -89,9 +89,9 @@ amtavg:{account_id}           # String: historical avg amount
 ```
 
 ### Fraud Types Caught
-- ✅ Account takeover (burst of transactions)
-- ✅ Automated attacks (high frequency)
-- ✅ Amount testing (many small tx before large one)
+- Account takeover (burst of transactions)
+- Automated attacks (high frequency)
+- Amount testing (many small tx before large one)
 
 ---
 
@@ -187,7 +187,7 @@ sim_changed:{account_id}  # Flag with 48h TTL
 ```
 
 ### Performance
-- **Latency:** ~25ms
+- **Latency:** ~1 ms median, 3 ms P99 (measured — see [07-performance.md](./07-performance.md))
 - **Why fast:** Simple calculations, Redis lookup
 - **Bottleneck:** Geodesic distance calculation
 
@@ -200,10 +200,10 @@ sim_changed:{account_id}  # Flag with 48h TTL
 ```
 
 ### Fraud Types Caught
-- ✅ SIM-swap attacks (location + SIM change)
-- ✅ Device theft (new device + distant location)
-- ✅ Account takeover (new device)
-- ✅ VPN-based fraud (proxy detection)
+- SIM-swap attacks (location + SIM change)
+- Device theft (new device + distant location)
+- Account takeover (new device)
+- VPN-based fraud (proxy detection)
 
 ---
 
@@ -345,7 +345,7 @@ class BehaviorLSTM(nn.Module):
 ```
 
 ### Performance
-- **Latency:** ~68ms (bottleneck agent)
+- **Latency:** ~7 ms median, 19 ms P99 — the slowest agent (measured — see [07-performance.md](./07-performance.md))
 - **Why slower:** LSTM inference + feature extraction
 - **Optimization:** Could use ONNX (2× faster)
 
@@ -358,10 +358,10 @@ class BehaviorLSTM(nn.Module):
 ```
 
 ### Fraud Types Caught
-- ✅ Unusual amounts (too high or too low)
-- ✅ Unusual timing (2am transactions)
-- ✅ Unusual merchants (never seen before)
-- ✅ Unusual patterns (sequence anomalies)
+- Unusual amounts (too high or too low)
+- Unusual timing (2am transactions)
+- Unusual merchants (never seen before)
+- Unusual patterns (sequence anomalies)
 
 ---
 
@@ -456,7 +456,7 @@ CREATE (a)-[:TRANSFERRED {
 ```
 
 ### Performance
-- **Latency:** ~42ms (with cache), ~200ms (without)
+- **Latency:** ~1 ms median, 3 ms P99 with the Redis cache warm (measured — see [07-performance.md](./07-performance.md))
 - **Why fast:** Cached results, indexed queries
 - **Bottleneck:** Graph traversal (if cache miss)
 
@@ -468,13 +468,13 @@ CREATE (a)-[:TRANSFERRED {
 ```
 
 ### Fraud Types Caught
-- ✅ Mule rings (money laundering)
-- ✅ Layering schemes (rapid transfers)
-- ✅ Smurfing (many small sources)
+- Mule rings (money laundering)
+- Layering schemes (rapid transfers)
+- Smurfing (many small sources)
 
 ---
 
-## 🎯 Agent Comparison
+## Agent Comparison
 
 | Agent | Type | Latency | Fraud Types | Accuracy |
 |-------|------|---------|-------------|----------|
@@ -498,7 +498,7 @@ CREATE (a)-[:TRANSFERRED {
 - Clear reason codes per agent
 
 **4. Performance**
-- Parallel execution (85ms total, not 150ms)
+- Parallel execution: end-to-end P99 ~19 ms (bounded by the slowest agent), vs ~31 ms summed
 - Heuristic agents fast, ML agent accurate
 
 ---

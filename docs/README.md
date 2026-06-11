@@ -1,92 +1,38 @@
-# SENTINEL - Complete Project Documentation
+# SENTINEL — Technical Documentation
 
-## 📋 Table of Contents
+Multi-agent, real-time fraud detection for Nepal's banking sector.
+Global IME AI/ML Hackathon 2026 · Track B — Security & Fraud.
 
-1. [Project Overview](./docs/01-overview.md)
-2. [Architecture Deep Dive](./docs/02-architecture.md)
-3. [Technology Choices](./docs/03-tech-stack.md)
-4. [Setup Guide](./docs/04-setup.md)
-5. [Agent Details](./docs/05-agents.md)
-6. [Data Flow](./docs/06-data-flow.md)
-7. [Performance](./docs/07-performance.md)
-8. [Demo Guide](./docs/08-demo.md)
+For the project summary and quick start, see the [root README](../README.md).
+This folder is the in-depth technical reference.
 
----
+## Reading order
 
-## 🎯 Quick Summary
+| # | Document | What it covers |
+|---|----------|----------------|
+| 01 | [Overview](./01-overview.md) | Problem, the Nepal fraud landscape, related work, and the multi-agent solution |
+| 02 | [Architecture](./02-architecture.md) | Request flow, parallel agent execution, timeout handling, scalability |
+| 03 | [Tech stack](./03-tech-stack.md) | Each technology choice and the alternatives considered |
+| 04 | [Setup](./04-setup.md) | Installation, configuration, and deployment (see also [/SETUP.md](../SETUP.md)) |
+| 05 | [Agents](./05-agents.md) | Per-agent algorithms, signals, and reason codes |
+| 06 | [Data flow](./06-data-flow.md) | A transaction's journey from ingestion to audited verdict |
+| 07 | [Performance](./07-performance.md) | Measured latency and detection results, and how they were obtained |
+| 08 | [Demo](./08-demo.md) | Presentation script and scenario walkthroughs |
+| 09 | [Track-B submission](./09-track-b-submission.md) | Eval-day pipeline: scoring the official data and producing the submission |
 
-**SENTINEL** is a production-ready, multi-agent fraud detection system built for the Global IME AI/ML Hackathon 2026 (Track B - Security & Fraud).
+## Reference
 
-### What It Does
-Analyzes every transaction through 4 specialized ML agents in parallel, synthesizes their verdicts with context-aware weighting, and triggers dual-path OTP verification on suspicious cases.
+- [decisions.md](./decisions.md) — architecture decision records (why each major choice was made)
+- [schemas.md](./schemas.md) — data contracts (`TransactionEvent`, `AgentScore`, `SynthesisVerdict`)
 
-### Why It Matters
-- **10× faster** than required (85ms vs 800ms target)
-- **97% fraud detection** rate (exceeds 95% target)
-- **1.8% false positives** (beats 3% target)
-- **Real ML models** (LSTM + Isolation Forest)
-- **Production-ready** (Docker, tests, monitoring)
+## Where the numbers come from
 
-### Key Innovation
-**Context-aware synthesis** - Fraud detection weights adapt based on transaction type (P2P, QR, SWIFT, ATM). This is the headline innovation that addresses Track B's core challenge.
+Every performance figure in these docs is reproducible, not asserted:
 
----
+- **Detection quality and latency** — `python3 scripts/benchmark_synthetic.py` replays the
+  labelled synthetic seeds through the live agents and writes [`benchmarks/eval_report.txt`](../benchmarks/eval_report.txt).
+- **Eval-day metrics** — `python3 scripts/evaluate.py --data structured` scores the official
+  Track-B data against the §8.1 targets and the §8.3 rule-engine baseline.
+- **Tests** — `python3 -m pytest -q`.
 
-## 🚀 Quick Start
-
-```bash
-# 1. Start everything
-bash scripts/start_all.sh
-
-# 2. Open dashboard
-open http://localhost:5173
-
-# 3. Start transaction stream
-python3 data/generators/replay.py
-
-# 4. Click "Sita Attack" scenario
-# Watch fraud detection in action!
-```
-
----
-
-## 📊 System Status
-
-```
-✅ All 4 official challenges solved
-✅ 59/59 tests passing (100%)
-✅ All agents implemented and working
-✅ Professional dashboard live
-✅ Performance exceeds all targets
-✅ Production-ready code
-```
-
----
-
-## 📚 Detailed Documentation
-
-Each document explains a specific aspect:
-
-- **01-overview.md** - Problem statement, requirements, solution approach
-- **02-architecture.md** - System design, component interaction, data flow
-- **03-tech-stack.md** - Technology choices and justifications
-- **04-setup.md** - Installation, configuration, deployment
-- **05-agents.md** - Each agent's algorithm, implementation, performance
-- **06-data-flow.md** - How data moves through the system
-- **07-performance.md** - Benchmarks, optimizations, scalability
-- **08-demo.md** - Demo script, scenarios, talking points
-
----
-
-## 🏆 Competitive Advantages
-
-1. **Real Multi-Agent ML** - Not just rules, actual LSTM + Isolation Forest
-2. **Context-Aware Innovation** - Weights adapt by transaction type
-3. **Production-Ready** - Docker, tests, monitoring, documentation
-4. **Professional UI** - Looks like a real product, not a prototype
-5. **Complete System** - End-to-end working, not just components
-6. **Exceeds Targets** - 10× faster, higher accuracy, lower false positives
-
----
-
-Built for Global IME AI/ML Hackathon 2026 · Track B — Security & Fraud
+See [07-performance.md](./07-performance.md) for the current results and methodology.

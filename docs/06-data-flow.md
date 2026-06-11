@@ -1,6 +1,6 @@
 # 06 - Data Flow
 
-## 🔄 Complete Transaction Journey
+## Complete Transaction Journey
 
 ### Overview
 
@@ -12,7 +12,7 @@ Transaction → Adapter → Orchestrator → 4 Agents → Synthesis → Verdict 
 
 ---
 
-## 📥 Phase 1: Ingestion
+## Phase 1: Ingestion
 
 ### Real-World Flow (Production)
 
@@ -83,7 +83,7 @@ TransactionEvent(
 
 ---
 
-## ⚙️ Phase 2: Orchestration
+## Phase 2: Orchestration
 
 ### Parallel Execution
 
@@ -109,8 +109,8 @@ async def process_transaction(tx: TransactionEvent):
 **Why asyncio.gather?**
 - Runs all agents simultaneously
 - Total time = max(agent times), not sum
-- 85ms total vs 150ms if sequential
 - Better CPU utilization
+- See [07-performance.md](./07-performance.md) for measured latency
 
 **Timeout Handling:**
 ```python
@@ -130,7 +130,7 @@ except asyncio.TimeoutError:
 
 ---
 
-## 🤖 Phase 3: Agent Scoring
+## Phase 3: Agent Scoring
 
 ### Velocity Agent Data Flow
 
@@ -240,7 +240,7 @@ AgentScore(agent="gnn", score=0.95, ...)
 
 ---
 
-## 🎯 Phase 4: Synthesis
+## Phase 4: Synthesis
 
 ### Context-Aware Weighting
 
@@ -280,7 +280,7 @@ WEIGHTS_BY_TYPE = {
 
 ---
 
-## 🔐 Phase 5: OTP Interlock (If Needed)
+## Phase 5: OTP Interlock (If Needed)
 
 ### Trigger Flow
 
@@ -339,7 +339,7 @@ Kafka: sentinel.otp_events
 
 ---
 
-## 📤 Phase 6: Output & Audit
+## Phase 6: Output & Audit
 
 ### Multi-Channel Output
 
@@ -394,7 +394,7 @@ CREATE TABLE audit_log (
 
 ---
 
-## 🔄 Feedback Loop
+## Feedback Loop
 
 ### Retraining Pipeline
 
@@ -424,16 +424,18 @@ Agents reload models (hot reload)
   "trigger": "scheduled",
   "timestamp": "...",
   "metrics": {
-    "recall": 0.972,
-    "fpr": 0.018,
-    "auc": 0.989
+    "recall": "<recall>",
+    "fpr": "<fpr>",
+    "auc": "<auc>"
   }
 }
 ```
 
+See [07-performance.md](./07-performance.md) for measured model metrics.
+
 ---
 
-## 📊 Data Volume Estimates
+## Data Volume Estimates
 
 ### Per Transaction
 
@@ -460,7 +462,7 @@ Agents reload models (hot reload)
 
 ---
 
-## 🔍 Data Access Patterns
+## Data Access Patterns
 
 ### Read-Heavy
 
@@ -494,7 +496,7 @@ Agents reload models (hot reload)
 
 ---
 
-## 🎯 Data Flow Optimization
+## Data Flow Optimization
 
 ### Caching Strategy
 

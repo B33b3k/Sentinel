@@ -1,243 +1,193 @@
 # SENTINEL
 
-> **Agentic Fraud Detection Framework for Real-Time Transaction Security**
-> Global IME AI/ML Hackathon 2026 · Track B — Security & Fraud
-> Multi-agent ML system with context-aware orchestrator and dual-path OTP verification
+> Multi-agent, real-time fraud detection for Nepal's banking sector.
+> Global IME AI/ML Hackathon 2026 · Track B — Security & Fraud.
 
----
+SENTINEL scores every transaction through four specialized agents in parallel, fuses their
+scores with **context-aware weights that depend on the transaction type**, and routes the
+result to one of three verdicts — `ALLOW`, `OTP_INTERLOCK`, or `BLOCK`. Suspicious transactions
+are verified with **dual-path OTP** (SMS + Email) designed to expose SIM-swap attacks rather
+than block the customer outright.
 
-## Table of Contents
+## Contents
 
-- [Overview](#overview)
+- [Why this design](#why-this-design)
 - [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
-- [Key Achievements](#key-achievements)
-- [Quick Start](#quick-start)
-- [Track-B Submission (Eval Day)](#track-b-submission-eval-day)
-- [System Metrics](#system-metrics)
-- [Sprint Plan (Completed)](#sprint-plan-completed)
-- [Team Roles](#team-roles)
+- [The agents](#the-agents)
+- [Context-aware synthesis](#context-aware-synthesis)
+- [Tech stack](#tech-stack)
+- [Quick start](#quick-start)
+- [Performance & evaluation](#performance--evaluation)
+- [Track-B submission (eval day)](#track-b-submission-eval-day)
+- [Documentation](#documentation)
+- [Repository layout](#repository-layout)
 - [Glossary](#glossary)
 
-## Abstract
+## Why this design
 
-SENTINEL is a multi-agent machine learning framework for real-time fraud detection in Nepal's banking sector, submitted for Track B — Security & Fraud of the Global IME AI/ML Hackathon 2026. The system implements the exact agent pipeline specified in the problem statement — Velocity Agent, Geo Agent, Behavior Agent, Synthesis Agent, and OTP Interlock — and directly addresses all four stated key challenges: false positive minimization, context-aware weight adaptation by transaction type, cold-start handling for new users, and dual-path OTP design resistant to SIM-swap attacks.
+Track B names four challenges; each maps to a concrete mechanism:
 
-SENTINEL's Synthesis Agent applies dynamic weight vectors that shift based on transaction type — eSewa/QR payments weight the Geo Agent at 40%, while SWIFT remittance transactions weight the Graph Neural Network at 40% for money mule detection. The OTP Interlock requires independent confirmation from both Email OTP and SMS OTP channels within a five-minute window, with channel-specific failure analysis to detect and flag SIM-swap attacks.
+| Challenge | Mechanism |
+|-----------|-----------|
+| Minimize false positives | A graduated verdict band — `0.40–0.75` routes to OTP verification, not a block |
+| Context-aware detection | Per-transaction-type weight vectors in the Synthesis Agent |
+| Cold-start protection | Six peer cohorts; a new account inherits its cohort's models from day 0 |
+| SIM-swap defense | Independent dual-path OTP; an SMS-pass / Email-fail asymmetry signals SIM-swap |
 
-The system achieves an end-to-end verdict latency of **85ms P99** (well within the 800ms track requirement), fraud detection recall of **97.2%**, and a false positive rate of **1.8%**. Implementation uses the official track-suggested technology stack: PyTorch, Apache Kafka, Redis, Neo4j, Twilio/Sparrow SMS, and MLflow.
-
----
-
-## Overview
-
-SENTINEL is a multi-agent fraud detection system that scores every transaction through four specialized agents in parallel, synthesizes their verdicts with context-aware weighting based on transaction type, and triggers dual-path OTP verification (Email + SMS) on suspicious cases to defeat SIM-swap attacks.
-
-**Target vs Actual metrics:**
-
-| Metric | Target | Actual |
-|--------|--------|--------|
-| P99 Latency | < 800 ms | **85 ms** (✅ 9.4× faster) |
-| Fraud Recall | > 97% | **97.2%** (✅ Exceeds target) |
-| False Positive Rate | < 2% | **1.8%** (✅ Beats target) |
-| Throughput | 10,000 TPS | **Validated on cluster** |
-
-**Official Track B Challenges Addressed:**
-
-1. **Minimize False Positives:** Graduated OTP-interlock band (score 0.40–0.75 routes to verification, not block).
-2. **Context-Aware Synthesis:** Weights that adapt by transaction type (P2P / QR / SWIFT / ATM).
-3. **Cold-Start Protection:** Peer-cohort modeling from day 0 via 4-stage onboarding.
-4. **SIM-Swap Defense:** Independent dual-path OTP (Email + SMS) with cross-channel verification.
-
----
+Detail and the supporting literature are in [docs/01-overview.md](docs/01-overview.md).
 
 ## Architecture
 
 ```
                     ┌────────────────────────────────────────┐
-                    │      Transaction Event (Kafka)         │
+                    │       Transaction Event (Kafka)        │
                     └──────────────────┬─────────────────────┘
-                                       │
+                                       │  normalize via adapter
                 ┌──────────────────────┼──────────────────────┐
-                │                      │                      │
-                ▼                      ▼                      ▼
-        ┌──────────────┐      ┌──────────────┐       ┌──────────────┐
-        │   Velocity   │      │     Geo      │       │   Behavior   │
-        │   Agent      │      │   Agent      │       │   Agent      │
-        │ (Redis-based)│      │  (heuristic) │       │ (LSTM + IF)  │
-        └──────┬───────┘      └──────┬───────┘       └──────┬───────┘
-               │                     │                      │
-               │              ┌──────▼──────┐               │
-               │              │ GNN Agent   │               │
-               │              │  (Neo4j)    │               │
-               │              └──────┬──────┘               │
-               │                     │                      │
-               └─────────────────────┼──────────────────────┘
-                                     ▼
-                         ┌─────────────────────┐
-                         │  Synthesis Agent    │
-                         │ Context-Aware       │
-                         │ Weighted Voting     │
-                         └──────────┬──────────┘
-                                    │
-              ┌─────────────────────┼─────────────────────┐
-              │                     │                     │
-              ▼                     ▼                     ▼
-         ALLOW (< 0.40)    OTP_INTERLOCK (0.40-0.75)  BLOCK (> 0.75)
-                                    │
-                         ┌──────────┴──────────┐
-                         ▼                     ▼
-                    SMS OTP              Email OTP
-                  (Sparrow/Twilio)        (SMTP)
-                         │                     │
-                         └──────────┬──────────┘
-                                    ▼
-                      Both confirmed → RELEASE
-                      Email-only confirmed → SIM-SWAP BLOCK
-                      Either fails → HUMAN REVIEW
+                ▼          ▼            ▼            ▼          (asyncio.gather,
+          ┌──────────┐ ┌──────┐  ┌──────────┐ ┌──────────┐     1s per-agent timeout;
+          │ Velocity │ │ Geo  │  │ Behavior │ │   GNN    │     timeout → neutral 0.5)
+          │ (Redis)  │ │(heur)│  │(LSTM+IF) │ │ (Neo4j)  │
+          └────┬─────┘ └──┬───┘  └────┬─────┘ └────┬─────┘
+               └──────────┴─────┬─────┴────────────┘
+                                ▼
+                     ┌─────────────────────┐
+                     │   Synthesis Agent    │  composite = Σ weightᵢ·scoreᵢ
+                     │ context-aware weights│  clamped to [0,1]
+                     └──────────┬───────────┘
+                  ┌─────────────┼─────────────┐
+                  ▼             ▼             ▼
+           ALLOW (<0.40)  OTP_INTERLOCK   BLOCK (>0.75)
+                          (0.40–0.75)
+                                │  SMS + Email, 5-min window
+                       both ✓ → RELEASE
+                       SMS ✗ / Email ✓ → BLOCK (sim-swap)
+                       SMS ✓ / Email ✗ → HUMAN_REVIEW
 ```
 
----
+The orchestrator (`orchestrator/main.py`) is the single entry point. Audit writes and OTP
+dispatch are fire-and-forget — they never block or change a verdict. Full request flow:
+[docs/02-architecture.md](docs/02-architecture.md).
 
-## Tech Stack
+## The agents
 
-| Layer           | Technology                          | Purpose                                      |
-| --------------- | ----------------------------------- | -------------------------------------------- |
-| Streaming       | Apache Kafka                        | Transaction event bus                        |
-| Cache           | Redis 7                             | Velocity windows, account history, OTP state |
-| Graph DB        | Neo4j 5 (Community + GDS)           | Account relationship graph                   |
-| Relational DB   | PostgreSQL 16                       | Audit log, account metadata                  |
-| ML Framework    | PyTorch 2.x + scikit-learn          | LSTM + Isolation Forest Ensemble             |
-| Graph ML        | Neo4j Cypher                        | Real-time mule-ring detection                |
-| Model Lifecycle | MLflow 2.x                          | Tracking, registry, drift monitoring         |
-| API             | FastAPI + asyncio                   | Orchestrator service                         |
-| Frontend        | React + Vite + Tailwind + Recharts  | Professional demo dashboard                  |
-| Container       | Docker Compose                      | 8-service production stack                  |
+| Agent | Implementation | Catches |
+|-------|----------------|---------|
+| **Velocity** | Redis sliding-window counters | Burst attacks, structuring, dormancy breaks |
+| **Geo** | Heuristic geo-velocity + device fingerprint | Impossible travel, new device, VPN/Tor, SIM change |
+| **Behavior** | Per-cohort LSTM + Isolation Forest ensemble | Anomalous amount / timing / counterparty |
+| **GNN** | Neo4j Cypher graph queries | Money-mule rings, layering |
 
----
+Each agent exposes a sync `score(tx) -> AgentScore` and stays side-effect-free on the hot path.
+Algorithms and reason codes: [docs/05-agents.md](docs/05-agents.md).
 
-## Key Achievements
+## Context-aware synthesis
 
-- **100% Test Pass Rate:** 59/59 unit and scenario tests passing.
-- **Extreme Performance:** 85ms P99 latency allows for high-frequency trading level security.
-- **Innovation:** Context-aware synthesis is the first of its kind in regional hackathons.
-- **Production Ready:** Fully dockerized, documented, and monitored.
+The core innovation. `WEIGHTS_BY_TYPE` maps each transaction type to a per-agent weight vector,
+so the signals that actually predict fraud for that type dominate the score:
 
----
+```python
+"KHALTI_QR":     {"velocity": 0.35, "geo": 0.35, "behavior": 0.25, "gnn": 0.05}  # location-driven
+"SWIFT_OUTWARD": {"velocity": 0.15, "geo": 0.20, "behavior": 0.20, "gnn": 0.45}  # graph-driven
+```
 
-## Quick Start
+A missing/timed-out agent is imputed to a neutral `0.5`; unknown types fall back to a balanced
+vector. This satisfies the §8.2 weight-adaptation bonus. See `agents/synthesis/agent.py`.
 
-### 🚀 One-Command Startup
+## Tech stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Streaming | Apache Kafka | Transaction event bus |
+| Cache | Redis 7 | Velocity windows, account history, OTP state |
+| Graph DB | Neo4j 5 (+ GDS) | Account relationship graph |
+| Relational DB | PostgreSQL 16 | Audit log |
+| ML | PyTorch + scikit-learn | LSTM + Isolation Forest ensemble |
+| Model lifecycle | MLflow | Tracking, registry, drift monitoring |
+| API | FastAPI + asyncio | Orchestrator |
+| Frontend | React + Vite + Tailwind + Recharts | Dashboard |
+| Deployment | Docker Compose | 8-service stack |
+
+Rationale and alternatives considered: [docs/03-tech-stack.md](docs/03-tech-stack.md).
+
+## Quick start
 
 ```bash
-# Start all 8 services (Infra + ML + Dashboard)
+# Full stack: infra + models + 8 services + frontend (generates data & trains models if missing)
 bash scripts/start_all.sh
 
-# Open the dashboard
-open http://localhost:3000
-
-# Start transaction replay stream
-python3 data/generators/replay.py
+open http://localhost:3000          # dashboard
+python3 data/generators/replay.py   # live transaction stream
 ```
 
-### 📋 Service Status
-- **Dashboard:** http://localhost:3000
-- **API Docs:** http://localhost:8000/docs
-- **MLflow UI:** http://localhost:5050
-- **Neo4j:** http://localhost:7474
+Full setup, local-dev workflow, and troubleshooting: [SETUP.md](SETUP.md).
+Service ports: dashboard `:3000`, orchestrator `:8000` (`/docs`), MLflow `:5050`,
+Neo4j `:7474`, Postgres `:5432`, Redis `:6379`, Kafka `:9092`.
 
----
+## Performance & evaluation
 
-## Track-B Submission (Eval Day)
-
-SENTINEL is fully aligned to the **GIBL Track-B data dictionary**
-(`DATA_DESCRIPTION_Track_B.md`). The real `structured/*.csv` files arrive on hackathon
-day; everything below is built against the dictionary and verified on fixtures, ready to
-run immediately. Full guide: [`docs/09-track-b-submission.md`](docs/09-track-b-submission.md).
+All figures are reproducible, not asserted.
 
 ```bash
-# Place the real files under ./structured/, then:
+python3 -m pytest -q                    # test suite
+python3 scripts/benchmark_synthetic.py  # end-to-end latency + detection on labelled seeds
+```
 
-# 1. Measure standing vs the §8.1 targets and §8.3 rule-engine baseline
-python3 scripts/evaluate.py --data structured
+`benchmark_synthetic.py` replays the labelled synthetic seeds through the live agents and writes
+[`benchmarks/eval_report.txt`](benchmarks/eval_report.txt). Current results, per-agent latency,
+and the method behind them are in [docs/07-performance.md](docs/07-performance.md). On eval day,
+`scripts/evaluate.py` reports against the official §8.1 targets and the §8.3 rule-engine baseline.
 
-# 2. Produce the §8.4 submission + all §8.2 bonus artifacts → ./dist/
+## Track-B submission (eval day)
+
+SENTINEL is built against the [`DATA_DESCRIPTION_Track_B.md`](DATA_DESCRIPTION_Track_B.md) data
+dictionary. When the real `structured/*.csv` files arrive:
+
+```bash
+python3 scripts/evaluate.py --data structured                                  # standing vs §8.1 / §8.3
 python3 scripts/generate_submission.py --data structured --team sentinel --out dist
 ```
 
 | Output | Spec | Producer |
-|---|---|---|
+|--------|------|----------|
 | `submission_sentinel.csv` | §8.4 | `orchestrator/submission.py` |
-| `community_detection.json` (COMM-042 ring) | §8.2 +5% | `orchestrator/bonus.py` |
-| `otp_submission.csv` (sim-swap escalations) | §8.2 +5% | `orchestrator/bonus.py` |
-| `shap_values.csv` (top-5 attributions) | §8.2 +3% | `orchestrator/bonus.py` |
+| `community_detection.json` | §8.2 (+5%) | `orchestrator/bonus.py` |
+| `otp_submission.csv` | §8.2 (+5%) | `orchestrator/bonus.py` |
+| `shap_values.csv` | §8.2 (+3%) | `orchestrator/bonus.py` |
 
-Scoring runs the **offline multi-agent pipeline** (`orchestrator/offline_scorer.py`) over
-the dataset's precomputed velocity/geo/graph/device signals — no live infra needed — and
-covers all 7 §4 hidden patterns. The dynamic per-`txn_type` synthesis weights satisfy the
-§8.2 +5% weight-adaptation bonus.
+Scoring runs the offline multi-agent pipeline (`orchestrator/offline_scorer.py`) over the
+dataset's precomputed velocity/geo/graph/device signals — no live infra required. Full guide:
+[docs/09-track-b-submission.md](docs/09-track-b-submission.md).
 
----
+## Documentation
 
-## System Metrics
+Start with [docs/](docs/README.md). The numbered guides (01–09) go from problem statement to
+eval-day submission; [docs/decisions.md](docs/decisions.md) records the architecture decisions
+and [docs/schemas.md](docs/schemas.md) the data contracts. [LEARNING.md](LEARNING.md) is a
+ground-up walkthrough of the concepts for someone learning the stack.
 
-| Component      | Latency | Status |
-|----------------|---------|--------|
-| Velocity Agent | ~15ms   | ✅ Optimal |
-| Geo Agent      | ~25ms   | ✅ Optimal |
-| Behavior Agent | ~68ms   | ✅ Optimal |
-| GNN Agent      | ~42ms   | ✅ Optimal |
-| Synthesis      | <1ms    | ✅ Instant |
-| **Total P99**  | **85ms** | ✅ **Busts target by 89%** |
+## Repository layout
 
----
-
-## Sprint Plan (Completed)
-
-### Sprint 0-2: Foundation & Data
-- [x] Infrastructure Lock (8 services)
-- [x] Synthetic Data Generation (100K transactions)
-- [x] Fraud Taxonomy Injection (6 patterns)
-
-### Sprint 3-7: Specialized Agents
-- [x] Velocity Agent (Redis sliding windows)
-- [x] Geo Agent (Device fingerprinting + Geo-velocity)
-- [x] Behavior Agent (Cohort-based LSTM + IF ensemble)
-- [x] GNN Agent (Cypher-based mule ring detection)
-- [x] Cold-Start Cohort System (4-stage onboarding)
-
-### Sprint 8-11: Orchestration & Lifecycle
-- [x] Synthesis Agent (Context-aware weighting)
-- [x] OTP Interlock (Dual-path SMS/Email)
-- [x] Orchestrator (Kafka consumer + parallel execution)
-- [x] MLflow Integration (Model registry + monitoring)
-
-### Sprint 12-15: Presentation & Polish
-- [x] Professional Dashboard (React + Recharts)
-- [x] Scenario Testing (Sita, SIM-swap, Mule-ring)
-- [x] Load Testing (3000+ TPS validated)
-- [x] Demo Prep (Slides, rehearsals, fallback videos)
-
----
-
-## Team Roles
-
-| Role | Responsibility |
-|------|----------------|
-| **Dev A** | Infrastructure, Kafka, Orchestrator |
-| **Dev B** | Heuristic Agents, OTP Interlock |
-| **Dev C** | ML Research, LSTMs, Graph Layer |
-| **Dev D** | Frontend, Synthesis, Presentation |
-
----
+```
+agents/         the four scoring agents + synthesis + OTP interlock
+orchestrator/   FastAPI entry point, schemas, offline scorer, submission + bonus artifacts
+ml/             cohorts, training, monitoring, trained artifacts
+graph/          Neo4j setup, data load, mule-detection Cypher
+data/           synthetic generators + the data-contract adapter
+frontend/       React dashboard
+scripts/        start/train/seed/benchmark/evaluate/generate_submission
+tests/          unit (agents, synthesis, metrics) + scenario + smoke
+docs/           technical documentation
+```
 
 ## Glossary
 
-- **Cohort:** Group of similar accounts sharing pretrained ML models.
-- **Composite Score:** Final fraud risk score [0, 1].
-- **SIM Swap:** Attack where a fraudster duplicates a victim's SIM card.
-- **P99:** 99th percentile latency; the standard for high-performance systems.
+- **Cohort** — a group of similar accounts that share pretrained models (the cold-start strategy).
+- **Composite score** — the fused fraud risk in `[0, 1]` that drives the verdict.
+- **OTP interlock** — the dual-path (SMS + Email) verification step for the `0.40–0.75` band.
+- **SIM-swap** — an attack that clones a victim's SIM to intercept SMS OTPs; defeated by the
+  Email channel the attacker cannot reach.
 
 ---
 
-_Built for the Global IME AI/ML Hackathon 2026 · Track B — Security & Fraud_
+_Built for the Global IME AI/ML Hackathon 2026 · Track B — Security & Fraud._

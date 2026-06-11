@@ -1,0 +1,25 @@
+SENTINEL — end-to-end benchmark on labelled synthetic seeds
+(replayed through the live Velocity/Geo/Behavior/GNN agents + SynthesisAgent)
+
+## Detection quality (decision threshold = 0.40)
+n=96,938  fraud=1,938 (2.00%)
+AUROC                 0.7424  (target 0.93 ✗)   [baseline 0.71]
+Precision @ 5% FPR    0.1136  (target 0.75 ✗)
+Recall (thr=0.40)      0.3560  (target 0.88 ✗)   [baseline 0.62]
+F1 (thr=0.40)          0.1605  (target 0.80 ✗)   [baseline 0.54]
+FPR (thr=0.40)         0.0628   [baseline 0.14]
+
+## Latency  (n=96938, wall-time 1141.2s, 85 tx/s single-process)
+  velocity           p50   2.28ms   p95   4.67ms   p99   8.41ms   max 1600.07ms
+  geo                p50   0.71ms   p95   1.59ms   p99   2.68ms   max 143.07ms
+  behavior           p50   6.68ms   p95  11.04ms   p99  18.58ms   max 965.74ms
+  gnn                p50   0.22ms   p95   1.45ms   p99   3.02ms   max 533.88ms
+  end-to-end (∥)     p50   6.69ms   p95  11.09ms   p99  18.91ms   max 1600.38ms
+  end-to-end (Σ)     p50  10.07ms   p95  17.83ms   p99  31.10ms   max 2414.10ms
+
+Notes:
+  ∥ = realistic online wall-clock: agents run concurrently (asyncio.gather),
+      so end-to-end ≈ max(agent latencies) + synthesis overhead.
+  Σ = sum of agent latencies (sequential upper bound).
+  Detection metrics are on self-generated synthetic data and are indicative;
+  eval-day numbers come from scripts/evaluate.py on the official Track-B files.

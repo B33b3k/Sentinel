@@ -1,53 +1,53 @@
 # 03 - Technology Stack
 
-## 🛠️ Technology Choices & Justifications
+## Technology Choices & Justifications
 
 ### Backend Stack
 
 #### Python 3.12
 **Why Python?**
-- ✅ Rich ML ecosystem (PyTorch, scikit-learn)
-- ✅ Fast development (hackathon time constraint)
-- ✅ Type hints (Pydantic for safety)
-- ✅ Async support (asyncio for parallel agents)
-- ❌ Slower than Go/Rust (but fast enough: 85ms)
+- Rich ML ecosystem (PyTorch, scikit-learn)
+- Fast development (hackathon time constraint)
+- Type hints (Pydantic for safety)
+- Async support (asyncio for parallel agents)
+- Slower than Go/Rust, but adequate for the latency budget (see [07-performance.md](./07-performance.md) for measured latency)
 
 **Alternatives considered:**
 - Go: Faster but weaker ML libraries
 - Java: Enterprise-ready but verbose
 - Rust: Fastest but steep learning curve
 
-**Decision:** Python wins for ML + speed of development
+**Decision:** Python for ML support and development speed
 
 ---
 
 #### FastAPI
 **Why FastAPI?**
-- ✅ Async/await (parallel agent execution)
-- ✅ Type safety (Pydantic schemas)
-- ✅ Auto-generated docs (Swagger UI)
-- ✅ WebSocket support (live dashboard updates)
-- ✅ High performance (Starlette + uvicorn)
+- Async/await (parallel agent execution)
+- Type safety (Pydantic schemas)
+- Auto-generated docs (Swagger UI)
+- WebSocket support (live dashboard updates)
+- Built on Starlette + uvicorn
 
 **Alternatives considered:**
 - Flask: Simpler but no async, no type safety
 - Django: Too heavy for this use case
 - Express.js: Would need Node.js (different ecosystem)
 
-**Decision:** FastAPI perfect for async ML service
+**Decision:** FastAPI for an async ML service
 
 ---
 
 #### PyTorch 2.x
 **Why PyTorch?**
-- ✅ Dynamic graphs (easier debugging)
-- ✅ Pythonic API (faster development)
-- ✅ Strong community (more examples)
-- ✅ TorchScript (production optimization)
+- Dynamic graphs (easier debugging)
+- Pythonic API (faster development)
+- Strong community (more examples)
+- TorchScript (inference optimization)
 
 **Alternatives considered:**
-- TensorFlow: More production-ready but verbose
-- JAX: Fastest but less mature
+- TensorFlow: More mature deployment tooling but verbose
+- JAX: Fast but less mature
 - scikit-learn only: No deep learning
 
 **Decision:** PyTorch for LSTM, scikit-learn for IF
@@ -56,10 +56,10 @@
 
 #### scikit-learn
 **Why scikit-learn?**
-- ✅ Battle-tested (stable, reliable)
-- ✅ Fast training (Isolation Forest in seconds)
-- ✅ Simple API (fit/predict)
-- ✅ Good documentation
+- Mature and stable
+- Fast training (Isolation Forest in seconds)
+- Simple API (fit/predict)
+- Good documentation
 
 **For:** Isolation Forest (anomaly detection)
 
@@ -69,18 +69,18 @@
 
 #### Apache Kafka
 **Why Kafka?**
-- ✅ Decouples ingestion from processing
-- ✅ Handles backpressure (if agents slow)
-- ✅ Replay capability (testing/debugging)
-- ✅ Scalable (add consumers)
-- ✅ Industry standard (production-proven)
+- Decouples ingestion from processing
+- Handles backpressure (if agents slow)
+- Replay capability (testing/debugging)
+- Scalable (add consumers)
+- Widely used for event streaming
 
 **Alternatives considered:**
 - RabbitMQ: Simpler but less scalable
 - Redis Streams: Lighter but less features
 - Direct HTTP: No buffering, no replay
 
-**Decision:** Kafka for production-grade streaming
+**Decision:** Kafka for event streaming
 
 **Topics:**
 ```
@@ -94,18 +94,18 @@ sentinel.retraining    → Model feedback loop
 
 #### Redis 7
 **Why Redis?**
-- ✅ In-memory (sub-millisecond lookups)
-- ✅ Sorted sets (time-range queries)
-- ✅ TTL support (auto-cleanup)
-- ✅ Atomic operations (thread-safe)
-- ✅ Simple (no complex setup)
+- In-memory (sub-millisecond lookups)
+- Sorted sets (time-range queries)
+- TTL support (auto-cleanup)
+- Atomic operations (thread-safe)
+- Simple (no complex setup)
 
 **Alternatives considered:**
 - Memcached: Simpler but no sorted sets
 - PostgreSQL: Persistent but slower
 - In-memory dict: No persistence, no TTL
 
-**Decision:** Redis perfect for velocity agent
+**Decision:** Redis for the velocity agent
 
 **Use cases:**
 - Velocity windows (sorted sets)
@@ -118,18 +118,18 @@ sentinel.retraining    → Model feedback loop
 
 #### Neo4j 5 Community
 **Why Neo4j?**
-- ✅ Native graph database (optimized)
-- ✅ Cypher query language (expressive)
-- ✅ Graph algorithms (GDS library)
-- ✅ Visualization (browser UI)
-- ✅ Free community edition
+- Native graph database (optimized for relationships)
+- Cypher query language (expressive)
+- Graph algorithms (GDS library)
+- Visualization (browser UI)
+- Free community edition
 
 **Alternatives considered:**
 - PostgreSQL + recursive CTEs: Slow for graphs
 - NetworkX: In-memory only, no persistence
 - Amazon Neptune: Cloud-only, expensive
 
-**Decision:** Neo4j industry standard for graphs
+**Decision:** Neo4j for graph queries
 
 **Schema:**
 ```cypher
@@ -142,10 +142,10 @@ sentinel.retraining    → Model feedback loop
 
 #### PostgreSQL 16
 **Why PostgreSQL?**
-- ✅ ACID compliance (audit trail)
-- ✅ JSON support (flexible schema)
-- ✅ Mature (stable, reliable)
-- ✅ Free and open source
+- ACID compliance (audit trail)
+- JSON support (flexible schema)
+- Mature and stable
+- Free and open source
 
 **Alternatives considered:**
 - MySQL: Similar but weaker JSON support
@@ -171,18 +171,18 @@ CREATE TABLE audit_log (
 
 #### MLflow 2.x
 **Why MLflow?**
-- ✅ Experiment tracking (compare models)
-- ✅ Model registry (version control)
-- ✅ Artifact storage (save models)
-- ✅ UI dashboard (visualize metrics)
-- ✅ Open source (no vendor lock-in)
+- Experiment tracking (compare models)
+- Model registry (version control)
+- Artifact storage (save models)
+- UI dashboard (visualize metrics)
+- Open source (no vendor lock-in)
 
 **Alternatives considered:**
 - Weights & Biases: Better UI but cloud-only
 - TensorBoard: PyTorch-only
 - Custom logging: Reinventing the wheel
 
-**Decision:** MLflow industry standard
+**Decision:** MLflow for experiment tracking and model registry
 
 **Tracked:**
 - 12 model training runs (6 cohorts × 2 models)
@@ -196,31 +196,31 @@ CREATE TABLE audit_log (
 
 #### React 18 + TypeScript
 **Why React?**
-- ✅ Component-based (reusable)
-- ✅ Virtual DOM (fast updates)
-- ✅ Large ecosystem (libraries)
-- ✅ Industry standard
+- Component-based (reusable)
+- Virtual DOM (fast updates)
+- Large ecosystem (libraries)
+- Widely adopted
 
 **Why TypeScript?**
-- ✅ Type safety (catch bugs early)
-- ✅ Better IDE support (autocomplete)
-- ✅ Self-documenting code
+- Type safety (catch bugs early)
+- Better IDE support (autocomplete)
+- Self-documenting code
 
 **Alternatives considered:**
 - Vue: Simpler but smaller ecosystem
 - Svelte: Faster but less mature
 - Plain JavaScript: No type safety
 
-**Decision:** React + TS for professional quality
+**Decision:** React + TS for the dashboard UI
 
 ---
 
 #### Vite
 **Why Vite?**
-- ✅ Fast dev server (instant HMR)
-- ✅ Fast builds (esbuild)
-- ✅ Modern (ES modules)
-- ✅ Simple config
+- Fast dev server (instant HMR)
+- Fast builds (esbuild)
+- Modern (ES modules)
+- Simple config
 
 **Alternatives considered:**
 - Create React App: Slower, deprecated
@@ -233,10 +233,10 @@ CREATE TABLE audit_log (
 
 #### Tailwind CSS
 **Why Tailwind?**
-- ✅ Utility-first (fast development)
-- ✅ No CSS files (everything in JSX)
-- ✅ Consistent design (design system)
-- ✅ Small bundle (purges unused)
+- Utility-first (fast development)
+- No CSS files (everything in JSX)
+- Consistent design (design system)
+- Small bundle (purges unused)
 
 **Alternatives considered:**
 - Bootstrap: Too opinionated
@@ -249,10 +249,10 @@ CREATE TABLE audit_log (
 
 #### Recharts
 **Why Recharts?**
-- ✅ React-native (composable)
-- ✅ Responsive (works on all screens)
-- ✅ Customizable (full control)
-- ✅ Good documentation
+- React-native (composable)
+- Responsive (works on all screens)
+- Customizable (full control)
+- Good documentation
 
 **Alternatives considered:**
 - Chart.js: Not React-native
@@ -267,10 +267,10 @@ CREATE TABLE audit_log (
 
 #### Docker Compose
 **Why Docker Compose?**
-- ✅ Multi-container (8 services)
-- ✅ Declarative (YAML config)
-- ✅ Reproducible (same everywhere)
-- ✅ Simple (one command startup)
+- Multi-container (8 services)
+- Declarative (YAML config)
+- Reproducible (same everywhere)
+- Simple (one command startup)
 
 **Alternatives considered:**
 - Kubernetes: Overkill for demo
@@ -297,51 +297,51 @@ CREATE TABLE audit_log (
 
 #### pytest
 **Why pytest?**
-- ✅ Simple syntax (assert statements)
-- ✅ Fixtures (reusable setup)
-- ✅ Parametrize (test multiple cases)
-- ✅ Coverage reports
+- Simple syntax (assert statements)
+- Fixtures (reusable setup)
+- Parametrize (test multiple cases)
+- Coverage reports
 
-**Test coverage:** 59/59 tests passing (100%)
+**Test coverage:** 96 tests pass (9 further tests are infra smoke checks that require the dockerized stack); run `python3 -m pytest -q`
 
 ---
 
 #### Locust
 **Why Locust?**
-- ✅ Python-based (same language)
-- ✅ Distributed (multi-machine)
-- ✅ Web UI (real-time metrics)
-- ✅ Scriptable (custom scenarios)
+- Python-based (same language)
+- Distributed (multi-machine)
+- Web UI (real-time metrics)
+- Scriptable (custom scenarios)
 
-**Load test:** 3K+ TPS validated
+**Load test:** see [07-performance.md](./07-performance.md) for measured throughput
 
 ---
 
 #### Black + Ruff
 **Why Black?**
-- ✅ Opinionated (no debates)
-- ✅ Consistent (same style everywhere)
-- ✅ Fast (Rust-based)
+- Opinionated (no debates)
+- Consistent (same style everywhere)
+- Fast (Rust-based)
 
 **Why Ruff?**
-- ✅ Fast linter (100× faster than flake8)
-- ✅ Replaces multiple tools (isort, flake8, etc.)
+- Fast linter
+- Replaces multiple tools (isort, flake8, etc.)
 
 ---
 
-## 📊 Technology Comparison
+## Technology Comparison
 
 ### Performance Comparison
 
-| Component | Technology | Latency | Alternative | Alt Latency |
-|-----------|-----------|---------|-------------|-------------|
-| Velocity | Redis | 15ms | PostgreSQL | 50ms |
-| Geo | Python | 25ms | Go | 10ms |
-| Behavior | PyTorch | 68ms | TensorFlow | 80ms |
-| GNN | Neo4j | 42ms | PostgreSQL | 200ms |
-| Orchestrator | FastAPI | <1ms | Flask | 5ms |
+Per-component and per-agent latency choices are summarized below; for measured latency see [07-performance.md](./07-performance.md).
 
-**Verdict:** Current stack is optimal for requirements
+| Component | Technology | Alternative |
+|-----------|-----------|-------------|
+| Velocity | Redis | PostgreSQL |
+| Geo | Python | Go |
+| Behavior | PyTorch | TensorFlow |
+| GNN | Neo4j | PostgreSQL |
+| Orchestrator | FastAPI | Flask |
 
 ---
 
@@ -355,11 +355,9 @@ CREATE TABLE audit_log (
 | Icons | Lucide | 12 KB |
 | **Total** | | **~160 KB** |
 
-**Verdict:** Acceptable for dashboard (loads in <1s)
-
 ---
 
-## 🎯 Technology Decisions Summary
+## Technology Decisions Summary
 
 ### What We Chose & Why
 
@@ -367,14 +365,14 @@ CREATE TABLE audit_log (
 2. **FastAPI** - Async + type safety
 3. **PyTorch** - LSTM training
 4. **scikit-learn** - Isolation Forest
-5. **Kafka** - Production streaming
-6. **Redis** - Fast caching
+5. **Kafka** - Event streaming
+6. **Redis** - Caching
 7. **Neo4j** - Graph analytics
 8. **PostgreSQL** - Audit trail
 9. **MLflow** - Model tracking
-10. **React + TypeScript** - Professional UI
-11. **Tailwind** - Rapid styling
-12. **Docker Compose** - Easy deployment
+10. **React + TypeScript** - Dashboard UI
+11. **Tailwind** - Styling
+12. **Docker Compose** - Deployment
 
 ### What We Didn't Choose & Why
 
@@ -388,14 +386,14 @@ CREATE TABLE audit_log (
 
 ---
 
-## 🏆 Technology Stack Strengths
+## Technology Stack Summary
 
-1. **Production-Ready** - All technologies battle-tested
-2. **Scalable** - Can handle 10K+ TPS
-3. **Maintainable** - Type-safe, well-documented
-4. **Fast** - 85ms P99 latency
-5. **Complete** - Full stack covered
-6. **Modern** - Latest versions, best practices
+- **Mature components** - All technologies are widely used and stable
+- **Horizontally scalable** - Stateless orchestrator; throughput scales with consumers (see [07-performance.md](./07-performance.md) for measured throughput)
+- **Maintainable** - Type-safe, documented
+- **Latency** - See [07-performance.md](./07-performance.md) for measured latency
+- **Full stack** - Ingestion, scoring, storage, and UI covered
+- **Current versions** - Recent releases of each dependency
 
 ---
 

@@ -1,232 +1,156 @@
-# 01 - Project Overview
+# 01 — Project Overview
 
-## 🎯 Problem Statement
+## Problem statement
 
-### The Challenge
-Financial institutions in Nepal face a uniquely challenging fraud environment. With NPR 1.2 trillion in annual remittances and over 50 million mobile banking users, institutions like Global IME Bank are exposed to sophisticated fraud vectors that generic, globally-trained models are poorly equipped to detect.
+### The challenge
+Financial institutions in Nepal operate in a demanding fraud environment. With large annual
+remittance flows and tens of millions of mobile-banking users, banks like Global IME are
+exposed to fraud vectors that generic, globally-trained models detect poorly — they miss
+locally-specific patterns and over-flag ordinary Nepali behaviour.
 
-### Nepal-Specific Fraud Landscape
-We address the six primary threat vectors identified in the Nepalese context:
+### Nepal-specific fraud landscape
+SENTINEL targets six primary threat vectors in the Nepalese context:
 
-1. **Remittance Interception:** Fraudulent beneficiary substitution during SWIFT transfers.
-2. **SIM Swap Account Takeover:** Duplicate SIM for OTP interception (NTC/Ncell).
-3. **eSewa / QR Fraud:** Stolen QR codes or compromised merchant accounts.
-4. **Velocity / Structuring:** Sub-threshold bursts across multiple mule accounts.
-5. **New Device Takeover:** Account access from previously unseen device fingerprints.
-6. **Synthetic Identity / KYC Fraud:** Using fake documents to open mule accounts.
+1. **Remittance interception** — fraudulent beneficiary substitution during SWIFT transfers.
+2. **SIM-swap account takeover** — duplicate SIM used to intercept OTPs (NTC/Ncell).
+3. **eSewa / QR fraud** — stolen QR codes or compromised merchant accounts.
+4. **Velocity / structuring** — sub-threshold bursts spread across mule accounts.
+5. **New-device takeover** — account access from a previously unseen device fingerprint.
+6. **Synthetic identity / KYC fraud** — fake documents used to open mule accounts.
 
-### Track B Requirements
-Global IME AI/ML Hackathon 2026 - Security & Fraud track (Track B) requires the design and implementation of a multi-agent ML system that checks each transaction through multiple specialized models, synthesizes verdicts through a context-aware orchestrator, and triggers dual-path OTP verification when fraud is suspected.
+### Track B requirements
+Track B asks for a multi-agent ML system that scores each transaction through several
+specialized models, synthesizes their verdicts through a context-aware orchestrator, and
+triggers dual-path OTP verification when fraud is suspected. The problem statement names four
+key challenges:
 
-The problem statement explicitly names four key challenges:
-1. **Minimize false positives** - Legitimate customers blocked = churn.
-2. **Context-aware detection** - Adapting weights based on transaction context (Remittance vs POS vs QR).
-3. **Cold-start protection** - New users with no behavioral history.
-4. **SIM-swap defense** - Defeating the #1 attack vector in Nepal.
+1. **Minimize false positives** — a blocked legitimate customer is churn.
+2. **Context-aware detection** — weights should adapt to transaction context (remittance vs POS vs QR).
+3. **Cold-start protection** — new users have no behavioural history.
+4. **SIM-swap defense** — the highest-impact attack vector in Nepal.
 
-### Performance Targets
-- Latency: < 800ms P99 (real-time requirement)
-- Fraud recall: > 97% (Target exceeds track minimum)
-- False positive rate: < 2% (Target beats track minimum)
-- Throughput: 10,000 TPS (Handle peak load)
+These four challenges structure the rest of this document.
 
----
+## Related work
 
-## 📚 Related Works
+SENTINEL's design draws on established literature:
 
-SENTINEL's architecture is grounded in established academic literature and industry best practices:
+- **Recall/precision trade-off** — Bolton & Hand (2002) frame the core tension that the
+  graduated verdict band (allow / verify / block) is designed to manage.
+- **Anomaly detection** — Liu et al. (2008) introduced the Isolation Forest, used here to flag
+  novel patterns outside the labelled training distribution.
+- **Sequence modelling** — Hochreiter & Schmidhuber (1997) introduced the LSTM, used to model a
+  customer's behaviour over time.
+- **Graph analytics** — Zhou et al. (2021) showed GNNs detect laundering rings, informing the
+  Neo4j-based graph agent.
+- **MFA security** — Bonneau et al. (2012) and Conti et al. (2018) document the weakness of
+  SMS-only OTP and motivate the independent dual-path design.
 
-- **Statistical Framework:** Bolton and Hand (2002) establish the core tension between recall and precision that our graduated verdict system addresses.
-- **Anomaly Detection:** Liu et al. (2008) introduced **Isolation Forest**, which we use for detecting novel fraud patterns outside the labeled training distribution.
-- **Sequence Modelling:** Hochreiter and Schmidhuber (1997) established **LSTM** networks, which we employ to model customer behavioral patterns over time.
-- **Graph Analytics:** Zhou et al. (2021) demonstrated the effectiveness of **Graph Neural Networks (GNNs)** for detecting money laundering rings, informing our Neo4j-based GNN Agent.
-- **MFA Security:** Bonneau et al. (2012) and Conti et al. (2018) identify the vulnerabilities of SMS-only OTP and recommend the independent dual-path design implemented in SENTINEL.
+## The solution: a multi-agent system
 
----
+Rather than one monolithic model, SENTINEL scores every transaction through four specialized
+agents in parallel, then fuses their scores with weights chosen by transaction type.
 
-## 💡 Our Solution
+**Why multi-agent:**
+- **Specialization** — each agent targets a distinct fraud signal.
+- **Parallelism** — agents run concurrently, so latency is bounded by the slowest, not the sum.
+- **Robustness** — if one agent times out, the others still produce a verdict (the missing score
+  is imputed to a neutral 0.5).
+- **Explainability** — the verdict carries each agent's score and reason codes.
 
-### SENTINEL - Multi-Agent Fraud Detection
+### The four agents
 
-**Core Concept:** Instead of one monolithic model, use 4 specialized agents that each detect different fraud patterns, then synthesize their verdicts with context-aware weighting.
+| Agent | Type | Detects |
+|-------|------|---------|
+| **Velocity** | Redis sliding-window counters | Burst attacks, structuring, dormancy breaks |
+| **Geo** | Heuristic geo-velocity + device fingerprint | Impossible travel, new devices, VPN/Tor, SIM change |
+| **Behavior** | Per-cohort LSTM + Isolation Forest ensemble | Anomalous amount, timing, and counterparty patterns |
+| **GNN** | Neo4j Cypher graph queries | Money-mule rings and layering |
 
-### Why Multi-Agent?
-1. **Specialization** - Each agent focuses on one fraud type
-2. **Parallel execution** - All agents run simultaneously (faster)
-3. **Robustness** - If one agent fails, others still work
-4. **Explainability** - See which agent flagged what
+Per-agent algorithms are in [05-agents.md](./05-agents.md); measured latencies are in
+[07-performance.md](./07-performance.md).
 
-### The 4 Agents
+### The key innovation: context-aware synthesis
 
-**1. Velocity Agent (Redis-based)**
-- **What:** Detects unusual transaction frequency
-- **How:** Sliding time windows (2m, 10m, 1h, 24h)
-- **Catches:** Burst attacks, account takeover
-- **Latency:** ~15ms
-
-**2. Geo Agent (Heuristic)**
-- **What:** Detects location/device anomalies
-- **How:** Distance calculations, device fingerprinting
-- **Catches:** Geo-impossible travel, new devices, VPN usage
-- **Latency:** ~25ms
-
-**3. Behavior Agent (ML)**
-- **What:** Detects unusual transaction patterns
-- **How:** LSTM + Isolation Forest ensemble
-- **Catches:** Unusual amounts, timing, merchant patterns
-- **Latency:** ~68ms (bottleneck)
-
-**4. GNN Agent (Graph)**
-- **What:** Detects money laundering networks
-- **How:** Neo4j graph queries (Cypher)
-- **Catches:** Mule rings, layering schemes
-- **Latency:** ~42ms
-
-### The Innovation: Context-Aware Synthesis
-
-**Problem:** Not all fraud signals matter equally for all transaction types.
-
-**Example:**
-- QR payments → Geo location matters most (40% weight)
-- SWIFT remittances → Graph patterns matter most (40% weight)
-- P2P transfers → Behavior matters most (30% weight)
-
-**Solution:** Synthesis agent uses different weight matrices per transaction type.
+Not every signal matters equally for every transaction type. A QR payment has no counterparty
+graph to speak of, but its location is highly informative; a SWIFT remittance is the opposite.
+The Synthesis Agent encodes this as a per-type weight vector:
 
 ```python
 WEIGHTS_BY_TYPE = {
-    "QR_ESEWA":         {"velocity": 0.35, "geo": 0.40, "behavior": 0.25, "gnn": 0.00},
-    "SWIFT_REMITTANCE": {"velocity": 0.15, "geo": 0.25, "behavior": 0.20, "gnn": 0.40},
-    "P2P":              {"velocity": 0.20, "geo": 0.30, "behavior": 0.30, "gnn": 0.20},
+    "KHALTI_QR":     {"velocity": 0.35, "geo": 0.35, "behavior": 0.25, "gnn": 0.05},
+    "ATM_WITHDRAWAL":{"velocity": 0.30, "geo": 0.45, "behavior": 0.20, "gnn": 0.05},
+    "ESEWA_P2P":     {"velocity": 0.20, "geo": 0.15, "behavior": 0.25, "gnn": 0.40},
+    "SWIFT_OUTWARD": {"velocity": 0.15, "geo": 0.20, "behavior": 0.20, "gnn": 0.45},
+    # ... one entry per Track-B transaction type
 }
 ```
 
-This is the **headline innovation** that addresses Track B's context-aware requirement.
+A QR payment leans on geo and velocity (no counterparty graph), while a SWIFT transfer leans on
+the graph agent for mule detection. An unknown type falls back to a balanced vector, and the
+composite is clamped to `[0, 1]`. This directly answers Track B's context-aware requirement and
+is the bonus-eligible weight-adaptation feature (§8.2). The full table is in
+[`agents/synthesis/agent.py`](../agents/synthesis/agent.py).
+
+## How each challenge is addressed
+
+### 1. Minimize false positives — a graduated verdict band
+Instead of a binary allow/block, the composite score routes to one of three outcomes:
+
+- `< 0.40` → **ALLOW**
+- `0.40 – 0.75` → **OTP_INTERLOCK** (verify, don't block)
+- `> 0.75` → **BLOCK**
+
+A suspicious-but-not-certain transaction is verified, not refused, so a legitimate customer can
+still complete it after passing OTP.
+
+### 2. Context-aware detection — per-type weights
+The weight vectors above mean each transaction type is judged by the signals that actually
+predict its fraud, rather than a one-size-fits-all model.
+
+### 3. Cold-start protection — cohort models from day 0
+A new account is assigned to one of six peer cohorts (by account type and home district) and
+inherits that cohort's trained models immediately. A four-stage onboarding tightens controls
+while personal history accrues:
+
+| Stage | Age | Controls |
+|-------|-----|----------|
+| 1 | days 0–3 | Strict NRB rule limits |
+| 2 | days 4–14 | Cohort models |
+| 3 | days 15–30 | Hybrid (cohort blended with personal) |
+| 4 | day 31+ | Personal models |
+
+### 4. SIM-swap defense — independent dual-path OTP
+Verification requires confirming codes on **both** SMS and Email within a five-minute window.
+The state machine treats channel-specific failures as signal:
+
+- both confirm → **RELEASE**
+- SMS fails, Email confirms → **BLOCK** (SIM-swap signature)
+- SMS confirms, Email fails → **HUMAN_REVIEW**
+- both fail → **BLOCK**
+
+An attacker who has cloned the SIM still cannot reach the victim's email, so the asymmetric
+failure exposes the attack.
+
+## Results
+
+Latency and detection metrics are measured, not asserted — see
+[07-performance.md](./07-performance.md) and the committed
+[`benchmarks/eval_report.txt`](../benchmarks/eval_report.txt) for the current run and the exact
+method used to produce it. Eval-day metrics against the official Track-B data come from
+`scripts/evaluate.py`, which reports against the §8.1 targets and the §8.3 baseline.
+
+## Demo scenarios
+
+The dashboard ships five end-to-end scenarios (see [08-demo.md](./08-demo.md)):
+
+1. **Sita — attack** — 2am, NPR 85K, new device, ~800 km from home → all agents flag → BLOCK.
+2. **Sita — legitimate** — 11am, NPR 1.2K, known device, home district → ALLOW.
+3. **SIM-swap** — SMS confirms, Email fails → BLOCK (SIM-swap detected).
+4. **Cold-start** — day-5 overseas-worker account → legit inbound ALLOWed via cohort model;
+   suspicious outbound escalated.
+5. **Mule ring** — five sources → one mule → one destination → graph agent flags the ring.
 
 ---
 
-## 🎯 How We Address Each Challenge
-
-### Challenge 1: Minimize False Positives
-**Solution:** Graduated OTP band (0.40-0.75 score)
-- Score < 0.40 → ALLOW (low risk)
-- Score 0.40-0.75 → OTP_INTERLOCK (verify, don't block)
-- Score > 0.75 → BLOCK (high risk)
-
-**Why it works:** Suspicious transactions get verified, not blocked. Customer can complete legitimate transactions after OTP.
-
-### Challenge 2: Context-Aware Detection
-**Solution:** Different weight matrices per transaction type
-- QR payments prioritize geo signals
-- SWIFT prioritizes graph signals
-- P2P balances all signals
-
-**Why it works:** Each transaction type has different fraud patterns. One-size-fits-all doesn't work.
-
-### Challenge 3: Cold-Start Protection
-**Solution:** 4-stage cohort-based onboarding
-- Days 0-3: Strict NRB rules (regulatory limits)
-- Days 4-14: Cohort models (6 peer groups)
-- Days 15-30: Hybrid (blend cohort + personal)
-- Day 31+: Personal models
-
-**Why it works:** New accounts use peer behavior patterns until they build their own history.
-
-### Challenge 4: SIM-Swap Defense
-**Solution:** Dual-path OTP (Email + SMS)
-- Both pass → RELEASE
-- SMS only → BLOCK (SIM-swap detected!)
-- Email only → HUMAN_REVIEW
-
-**Why it works:** Fraudster can duplicate SIM but can't access email. Independent channels defeat the attack.
-
----
-
-## 📊 Results
-
-### Performance (Exceeds All Targets)
-| Metric | Target | Achieved | Status |
-|--------|--------|----------|--------|
-| P99 Latency | < 800ms | 85ms | ✅ **10× better** |
-| Fraud Recall | > 95% | 97% | ✅ Exceeded |
-| False Positive | < 3% | 1.8% | ✅ Exceeded |
-| Throughput | 10K TPS | 3K+ TPS | ✅ Validated |
-
-### Why So Fast?
-1. **Parallel execution** - All agents run simultaneously
-2. **Optimized models** - Small LSTM (64 hidden units)
-3. **Caching** - Redis for velocity, Neo4j for graph
-4. **Async I/O** - FastAPI + asyncio
-
-### Why High Accuracy?
-1. **Ensemble approach** - Multiple models vote
-2. **Real ML** - LSTM learns temporal patterns
-3. **Graph analytics** - Detects network fraud
-4. **Context-aware** - Right signals for each type
-
----
-
-## 🏗️ System Components
-
-### Infrastructure
-- **Kafka** - Event streaming (4 topics)
-- **Redis** - Velocity caching + baselines
-- **Neo4j** - Account relationship graph
-- **Postgres** - Audit logging
-- **MLflow** - Model tracking
-
-### Application
-- **FastAPI** - Orchestrator service
-- **React** - Professional dashboard
-- **Docker** - Containerized deployment
-
-### ML Pipeline
-- **PyTorch** - LSTM training
-- **scikit-learn** - Isolation Forest
-- **MLflow** - Experiment tracking
-
----
-
-## 🎬 Demo Scenarios
-
-### 1. Sita Attack (Fraud)
-- 2am transaction, NPR 85K
-- New device, Dharan (800km from home)
-- All agents flag high
-- **Result:** BLOCK (150ms)
-
-### 2. Sita Legit (Normal)
-- 11am transaction, NPR 1.2K
-- Known device, Kathmandu (home)
-- All agents flag low
-- **Result:** ALLOW (122ms)
-
-### 3. SIM Swap
-- Fraudster has victim's SIM
-- SMS OTP passes, Email OTP fails
-- **Result:** BLOCK (SIM-swap detected)
-
-### 4. Cold Start
-- Day-5 overseas worker account
-- Legit inbound → ALLOW (cohort model)
-- Suspicious outbound → OTP_INTERLOCK
-
-### 5. Mule Ring
-- 5 sources → 1 mule → 1 destination
-- Graph agent detects pattern
-- **Result:** OTP_INTERLOCK (142ms)
-
----
-
-## 🏆 Why This Wins
-
-1. **Addresses all 4 challenges** - Complete solution
-2. **Real innovation** - Context-aware synthesis
-3. **Production-ready** - Not a prototype
-4. **Exceeds targets** - 10× faster, higher accuracy
-5. **Professional quality** - Code, tests, docs, UI
-6. **Complete system** - End-to-end working
-
----
-
-Next: [02 - Architecture Deep Dive](./02-architecture.md)
+Next: [02 — Architecture](./02-architecture.md)

@@ -204,21 +204,25 @@ ports:
 └──────┘ └──────┘ └──────┘ └────────┘ └────────┘
 ```
 
-## Performance Targets
+## Performance
 
-- **Latency:** P99 < 380ms (target: < 800ms)
-- **Throughput:** 10,000 TPS
-- **Fraud Recall:** > 97%
-- **False Positive Rate:** < 2%
+Track B requires a P99 verdict latency under 800 ms. Measured latency and detection results,
+and the method used to obtain them, are in [docs/07-performance.md](docs/07-performance.md) and
+the committed [`benchmarks/eval_report.txt`](benchmarks/eval_report.txt). To reproduce:
 
-## Next Steps
+```bash
+docker compose up -d redis neo4j
+python3 graph/load_data.py                 # load the account graph for the GNN agent
+python3 scripts/benchmark_synthetic.py     # → benchmarks/eval_report.txt
+```
 
-1. ✅ Run `bash scripts/start_all.sh`
-2. ✅ Open http://localhost:3000
-3. ✅ Click "Sita Attack" scenario button
-4. ✅ Watch the fraud detection in action
-5. ✅ Start transaction replay for live stream
-6. ✅ Run load tests to verify performance
+## Next steps
+
+1. Run `bash scripts/start_all.sh`
+2. Open http://localhost:3000
+3. Click the "Sita Attack" scenario button and watch the verdict breakdown
+4. Start the replay stream: `python3 data/generators/replay.py`
+5. Reproduce the benchmark (above) to verify performance on your machine
 
 ---
 
