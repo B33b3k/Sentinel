@@ -62,18 +62,20 @@ Measured on the live-agent replay (decision threshold 0.40):
 
 **Read this honestly.** On the cold live-agent path, ranking quality (AUROC 0.742) clears the
 §8.3 rule-engine baseline but falls short of the §8.1 targets, and operating-point recall at the
-default threshold is low. Two factors explain most of the gap, and both are addressed by the
-paths the system is actually scored on:
+default threshold is low. The reason — and the genuine path to the eval-day number — is the
+signal source, not baseline warmth:
 
-1. **No seeded per-account baselines.** This run started from an empty Redis, so the Velocity and
-   Geo agents had no personal history — velocity falls back to flat default averages, and geo
-   history begins empty. Production seeds these via `scripts/seed_all.sh`; seeding raises
-   per-account sensitivity, because a large amount is only anomalous *relative to that account*.
-2. **The live agents recompute signals from raw fields.** On eval day the official dataset ships
-   the expensive signals precomputed (`velocity_snapshots` §3.5, `geo_events` §3.4, graph degrees
-   §3.7). The **offline scorer** (`orchestrator/offline_scorer.py`) reads those directly and is a
-   stronger signal path than recomputing cold — it is the path measured by `scripts/evaluate.py`
-   on eval day, and it covers all seven §4 hidden patterns.
+- **Seeding per-account baselines was tried and did *not* help.** Re-running with
+  `ml/training/build_velocity_baselines.py` seeded (per-account average amount and velocity)
+  slightly *lowered* recall (0.356 → 0.283) and AUROC (0.742 → 0.726). The cause is in-sample
+  contamination: a baseline computed over this dataset includes each fraudster's own large
+  transactions, which inflates that account's average so the fraud no longer trips the amount
+  anomaly. Warm baselines only help when they're built from clean history, as a real bank's are.
+- **The live agents recompute signals from raw fields; eval day does not.** The official dataset
+  ships the expensive signals precomputed (`velocity_snapshots` §3.5, `geo_events` §3.4, graph
+  degrees §3.7), already leakage-free. The **offline scorer** (`orchestrator/offline_scorer.py`)
+  reads those directly — a stronger, cleaner signal path than recomputing cold — and covers all
+  seven §4 hidden patterns. It is the path measured on eval day by `scripts/evaluate.py`.
 
 This is exactly why the eval-day number is produced by the offline path against the official
 data, not asserted here:
