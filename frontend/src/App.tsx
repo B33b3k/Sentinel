@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
@@ -7,48 +7,8 @@ import {
   AlertTriangle, CheckCircle, XCircle, Zap, RefreshCw,
   ShieldAlert, Users, Globe, Activity, Shield, Clock, TrendingUp,
 } from "lucide-react";
-
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
-const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8000/ws/verdicts";
-
-type Verdict = "ALLOW" | "OTP_INTERLOCK" | "BLOCK";
-
-interface AgentScore {
-  agent: string;
-  score: number;
-  reason_codes: string[];
-  latency_ms: number;
-}
-
-interface Transaction {
-  transaction_id: string;
-  account_id: string;
-  composite_score: number;
-  verdict: Verdict;
-  agent_scores: AgentScore[];
-  weights_used: Record<string, number>;
-  transaction_type: string;
-  total_latency_ms: number;
-}
-
-interface Stats {
-  total: number;
-  allow: number;
-  otp_interlock: number;
-  block: number;
-  p50_ms: number;
-  p95_ms: number;
-  p99_ms: number;
-  fraud_by_type: Record<string, number>;
-}
-
-interface OTPPending {
-  tx_id: string;
-  account_id: string;
-  phone: string;
-  email: string;
-  triggered_at: number;
-}
+import { DEMO_MODE, getStats, runScenario, getPendingOTP, subscribeStream, StreamStatus } from "./lib/backend";
+import type { Transaction, Stats, OTPPending, Verdict } from "./lib/mock";
 
 const VERDICT_CONFIG: Record<Verdict, { color: string; bg: string; icon: JSX.Element; glow: string }> = {
   ALLOW: {
@@ -88,7 +48,7 @@ function Header({ stats, wsStatus }: { stats: Stats | null; wsStatus: string }) 
   
   return (
     <div className="glass rounded-2xl p-6 mb-6 animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl shadow-lg">
             <Shield size={28} className="text-white" />
@@ -100,8 +60,8 @@ function Header({ stats, wsStatus }: { stats: Stats | null; wsStatus: string }) 
             <p className="text-sm text-gray-400">Real-Time Fraud Detection · Multi-Agent ML System</p>
           </div>
         </div>
-        
-        <div className="flex items-center gap-6">
+
+        <div className="flex flex-wrap items-center gap-6">
           {stats && (
             <>
               <div className="text-right">
@@ -134,8 +94,8 @@ function Header({ stats, wsStatus }: { stats: Stats | null; wsStatus: string }) 
       </div>
 
       {/* Processing Pipeline Visualization */}
-      <div className="flex items-center justify-between text-xs text-gray-400 pt-4 border-t border-slate-700">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400 pt-4 border-t border-slate-700">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="px-2 py-1 bg-blue-900/30 rounded border border-blue-700/50 text-blue-300">
             Kafka Stream
           </div>
@@ -369,8 +329,7 @@ function ScenarioPanel({ onResult }: { onResult: (t: Transaction | object, scena
   const fire = async (id: string) => {
     setLoading(id);
     try {
-      const res = await fetch(`${API}/scenarios/run/${id}`, { method: "POST" });
-      const data = await res.json();
+      const data = await runScenario(id);
       setResults((prev) => ({ ...prev, [id]: data }));
       onResult(data, id);
     } catch (err) {
@@ -422,9 +381,7 @@ function OTPViewer() {
   useEffect(() => {
     const poll = async () => {
       try {
-        const res = await fetch(`${API}/otp/pending`);
-        const data = await res.json();
-        setPending(data);
+        setPending(await getPendingOTP());
       } catch {}
     };
     poll();
@@ -472,9 +429,7 @@ function StatsPanel({ txs }: { txs: Transaction[] }) {
   useEffect(() => {
     const poll = async () => {
       try {
-        const res = await fetch(`${API}/stats`);
-        const data = await res.json();
-        setStats(data);
+        setStats(await getStats());
       } catch {}
     };
     poll();
@@ -601,19 +556,16 @@ function StatsPanel({ txs }: { txs: Transaction[] }) {
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
-export default function App() {
+export default function Dashboard() {
   const [txs, setTxs] = useState<Transaction[]>([]);
   const [selected, setSelected] = useState<Transaction | null>(null);
-  const [wsStatus, setWsStatus] = useState<"connecting" | "open" | "closed">("connecting");
+  const [wsStatus, setWsStatus] = useState<StreamStatus>("connecting");
   const [stats, setStats] = useState<Stats | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     const poll = async () => {
       try {
-        const res = await fetch(`${API}/stats`);
-        const data = await res.json();
-        setStats(data);
+        setStats(await getStats());
       } catch {}
     };
     poll();
@@ -621,28 +573,13 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  const connect = useCallback(() => {
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-
-    ws.onopen = () => setWsStatus("open");
-    ws.onclose = () => {
-      setWsStatus("closed");
-      setTimeout(connect, 2000);
-    };
-    ws.onerror = () => setWsStatus("closed");
-    ws.onmessage = (e) => {
-      try {
-        const tx: Transaction = JSON.parse(e.data);
-        setTxs((prev) => [tx, ...prev].slice(0, 50));
-      } catch {}
-    };
-  }, []);
-
   useEffect(() => {
-    connect();
-    return () => wsRef.current?.close();
-  }, [connect]);
+    const unsubscribe = subscribeStream(
+      (tx) => setTxs((prev) => [tx, ...prev].slice(0, 50)),
+      setWsStatus,
+    );
+    return unsubscribe;
+  }, []);
 
   const handleScenarioResult = (data: Transaction | object, scenarioId: string) => {
     if ("transaction_id" in data) {
@@ -652,28 +589,34 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen p-4 md:p-6">
       <div className="max-w-[1800px] mx-auto">
+        {DEMO_MODE && (
+          <div className="mb-4 rounded-xl border border-amber-700/50 bg-amber-950/30 px-4 py-2 text-center text-xs text-amber-300">
+            Demo mode — transactions below are simulated in your browser (no backend, no real
+            data). <a href="/" className="underline hover:text-amber-200">Back to overview</a>
+          </div>
+        )}
         <Header stats={stats} wsStatus={wsStatus} />
-        
-        <div className="grid grid-cols-12 gap-6">
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
           {/* Left Column */}
-          <div className="col-span-3 space-y-6">
+          <div className="md:col-span-3 space-y-6">
             <ScenarioPanel onResult={handleScenarioResult} />
             <OTPViewer />
           </div>
 
           {/* Middle Column */}
-          <div className="col-span-4 h-[calc(100vh-180px)]">
+          <div className="md:col-span-4 h-[70vh] md:h-[calc(100vh-180px)]">
             <TransactionStream txs={txs} onSelect={setSelected} selected={selected} />
           </div>
 
           {/* Right Column */}
-          <div className="col-span-5 space-y-6">
-            <div className="h-[calc(60vh-120px)]">
+          <div className="md:col-span-5 space-y-6">
+            <div className="h-[70vh] md:h-[calc(60vh-120px)]">
               <TransactionInspector tx={selected} />
             </div>
-            <div className="h-[calc(40vh-120px)]">
+            <div className="h-[70vh] md:h-[calc(40vh-120px)]">
               <StatsPanel txs={txs} />
             </div>
           </div>

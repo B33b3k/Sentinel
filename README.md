@@ -3,6 +3,9 @@
 > Multi-agent, real-time fraud detection for Nepal's banking sector.
 > Global IME AI/ML Hackathon 2026 · Track B — Security & Fraud.
 
+**[Live demo →](https://frontend-rho-weld-91.vercel.app/)** — runs entirely in the browser on
+simulated transactions (no backend required). See [Demo mode](#demo-mode) below.
+
 SENTINEL scores every transaction through four specialized agents in parallel, fuses their
 scores with **context-aware weights that depend on the transaction type**, and routes the
 result to one of three verdicts — `ALLOW`, `OTP_INTERLOCK`, or `BLOCK`. Suspicious transactions
@@ -17,6 +20,7 @@ than block the customer outright.
 - [Context-aware synthesis](#context-aware-synthesis)
 - [Tech stack](#tech-stack)
 - [Quick start](#quick-start)
+- [Demo mode](#demo-mode)
 - [Performance & evaluation](#performance--evaluation)
 - [Track-B submission (eval day)](#track-b-submission-eval-day)
 - [Documentation](#documentation)
@@ -123,6 +127,28 @@ python3 data/generators/replay.py   # live transaction stream
 Full setup, local-dev workflow, and troubleshooting: [SETUP.md](SETUP.md).
 Service ports: dashboard `:3000`, orchestrator `:8000` (`/docs`), MLflow `:5050`,
 Neo4j `:7474`, Postgres `:5432`, Redis `:6379`, Kafka `:9092`.
+
+## Demo mode
+
+The [live demo](https://frontend-rho-weld-91.vercel.app/) is the same dashboard UI (`frontend/`)
+built standalone — it runs entirely in the browser against a simulated transaction generator
+(`frontend/src/lib/mock.ts`), using the real per-type synthesis weights from
+`agents/synthesis/agent.py`, with **no backend, Kafka, Redis, Neo4j, or real account data**
+involved. It's a way to explore the UI and the scoring logic's shape without standing up the
+full stack.
+
+For the real thing — live agents scoring transactions from Kafka against Redis/Neo4j — run the
+full stack locally (above) and open `http://localhost:3000`, or set `VITE_DEMO_MODE=false` and
+point `VITE_API_URL`/`VITE_WS_URL` at a deployed orchestrator.
+
+To deploy your own copy of the demo:
+
+```bash
+cd frontend
+vercel link
+vercel env add VITE_DEMO_MODE production   # value: true
+vercel deploy --prod
+```
 
 ## Performance & evaluation
 
