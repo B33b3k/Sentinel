@@ -29,10 +29,15 @@ function pushDemoTx(tx: Transaction) {
   }
 }
 
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  if (!res.ok) throw new Error(`${url} responded ${res.status}`);
+  return res.json();
+}
+
 export async function getStats(): Promise<Stats> {
   if (DEMO_MODE) return computeStats(demoHistory);
-  const res = await fetch(`${API}/stats`);
-  return res.json();
+  return fetchJson<Stats>(`${API}/stats`);
 }
 
 export async function runScenario(id: string): Promise<Transaction> {
@@ -41,8 +46,7 @@ export async function runScenario(id: string): Promise<Transaction> {
     pushDemoTx(tx);
     return tx;
   }
-  const res = await fetch(`${API}/scenarios/run/${id}`, { method: "POST" });
-  return res.json();
+  return fetchJson<Transaction>(`${API}/scenarios/run/${id}`, { method: "POST" });
 }
 
 export async function getPendingOTP(): Promise<OTPPending[]> {
@@ -54,8 +58,8 @@ export async function getPendingOTP(): Promise<OTPPending[]> {
     const live = demoHistory.filter((t) => demoPendingUntil.has(t.transaction_id));
     return generatePendingOTP(live);
   }
-  const res = await fetch(`${API}/otp/pending`);
-  return res.json();
+  const pending = await fetchJson<OTPPending[]>(`${API}/otp/pending`);
+  return Array.isArray(pending) ? pending : [];
 }
 
 export type StreamStatus = "connecting" | "open" | "closed";
