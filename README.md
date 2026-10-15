@@ -3,7 +3,7 @@
 > Multi-agent, real-time fraud detection for Nepal's banking sector.
 > Global IME AI/ML Hackathon 2026 · Track B — Security & Fraud.
 
-**[Live demo →](https://frontend-rho-weld-91.vercel.app/)** — runs entirely in the browser on
+**[Live demo →](https://sentinel-nepal.vercel.app/)** — runs entirely in the browser on
 simulated transactions (no backend required). See [Demo mode](#demo-mode) below.
 
 SENTINEL scores every transaction through four specialized agents in parallel, fuses their
@@ -130,7 +130,7 @@ Neo4j `:7474`, Postgres `:5432`, Redis `:6379`, Kafka `:9092`.
 
 ## Demo mode
 
-The [live demo](https://frontend-rho-weld-91.vercel.app/) is the same dashboard UI (`frontend/`)
+The [live demo](https://sentinel-nepal.vercel.app/) is the same dashboard UI (`frontend/`)
 built standalone — it runs entirely in the browser against a simulated transaction generator
 (`frontend/src/lib/mock.ts`), using the real per-type synthesis weights from
 `agents/synthesis/agent.py`, with **no backend, Kafka, Redis, Neo4j, or real account data**
